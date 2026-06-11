@@ -9,6 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useState, useRef } from 'react';
+import { useRouter } from 'expo-router';
 
 const Colors = {
   primary: '#1B4332',
@@ -81,6 +82,7 @@ export default function AlertsScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
   const C = isDark ? Colors.dark : Colors.light;
+  const router = useRouter();
 
   const [filter, setFilter] = useState<FilterType>('all');
   const [alerts, setAlerts] = useState(ALERTS);
@@ -128,7 +130,7 @@ export default function AlertsScreen() {
         </Text>
       </View>
 
-      {/* Push Notification Banner (simulated) */}
+      {/* Push Notification Banner */}
       {activeCount > 0 && (
         <View style={[styles.pushBanner, { backgroundColor: isDark ? '#2A1010' : '#FEF2F2' }]}>
           <Text style={styles.pushIcon}>🔔</Text>
@@ -196,7 +198,6 @@ export default function AlertsScreen() {
                 },
               ]}
             >
-              {/* Card Header */}
               <View style={styles.cardHeader}>
                 <View style={styles.coordsRow}>
                   <Text style={styles.pinIcon}>📍</Text>
@@ -236,7 +237,6 @@ export default function AlertsScreen() {
                 </View>
               </View>
 
-              {/* Disease + Date Row */}
               <View style={[styles.metaRow, { borderColor: C.border }]}>
                 <View style={[styles.diseasePill, { backgroundColor: isDark ? '#2A1A0A' : '#FFF7ED' }]}>
                   <Text style={[styles.diseaseText, { color: Colors.accent }]}>
@@ -248,16 +248,15 @@ export default function AlertsScreen() {
                 </Text>
               </View>
 
-              {/* Message */}
               <Text style={[styles.messageText, { color: C.subtext }]}>
                 {alert.message}
               </Text>
 
-              {/* Actions */}
               <View style={styles.actions}>
                 <TouchableOpacity
                   style={[styles.btnOutline, { borderColor: Colors.primary }]}
                   activeOpacity={0.7}
+                  onPress={() => router.push('/(tabs)/map' as any)}
                 >
                   <Text style={[styles.btnOutlineText, { color: Colors.primary }]}>
                     🗺 View on Map
@@ -333,14 +332,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       borderBottomColor: isDark ? '#2D3D33' : '#E5E7EB',
     },
     pushIcon: { fontSize: 20 },
-    pushTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-    },
-    pushSub: {
-      fontSize: 12,
-      marginTop: 1,
-    },
+    pushTitle: { fontSize: 13, fontWeight: '700' },
+    pushSub: { fontSize: 12, marginTop: 1 },
     filterRow: {
       flexDirection: 'row',
       paddingHorizontal: 16,
@@ -361,14 +354,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       shadowRadius: 4,
       elevation: 2,
     },
-    filterChipText: {
-      fontSize: 13,
-      fontWeight: '600',
-    },
-    scrollContent: {
-      paddingHorizontal: 16,
-      paddingTop: 16,
-    },
+    filterChipText: { fontSize: 13, fontWeight: '600' },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
     emptyState: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -376,15 +363,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       gap: 8,
     },
     emptyEmoji: { fontSize: 48 },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-    },
-    emptySub: {
-      fontSize: 14,
-      textAlign: 'center',
-      paddingHorizontal: 32,
-    },
+    emptyTitle: { fontSize: 18, fontWeight: '700' },
+    emptySub: { fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },
     alertCard: {
       borderRadius: 12,
       borderWidth: 1,
@@ -397,31 +377,17 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       alignItems: 'flex-start',
       marginBottom: 10,
     },
-    coordsRow: {
-      flexDirection: 'row',
-      gap: 6,
-      flex: 1,
-    },
+    coordsRow: { flexDirection: 'row', gap: 6, flex: 1 },
     pinIcon: { fontSize: 14, marginTop: 1 },
-    coordsText: {
-      fontSize: 13,
-      fontWeight: '600',
-    },
-    scanId: {
-      fontSize: 11,
-      marginTop: 1,
-    },
+    coordsText: { fontSize: 13, fontWeight: '600' },
+    scanId: { fontSize: 11, marginTop: 1 },
     statusBadge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 6,
       marginLeft: 8,
     },
-    statusText: {
-      fontSize: 10,
-      fontWeight: '700',
-      letterSpacing: 0.5,
-    },
+    statusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
     metaRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -430,25 +396,11 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       paddingBottom: 8,
       borderBottomWidth: 1,
     },
-    diseasePill: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    diseaseText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
+    diseasePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    diseaseText: { fontSize: 12, fontWeight: '600' },
     dateText: { fontSize: 11 },
-    messageText: {
-      fontSize: 13,
-      lineHeight: 18,
-      marginBottom: 12,
-    },
-    actions: {
-      flexDirection: 'row',
-      gap: 8,
-    },
+    messageText: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
+    actions: { flexDirection: 'row', gap: 8 },
     btnOutline: {
       flex: 1,
       height: 40,
@@ -457,10 +409,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    btnOutlineText: {
-      fontSize: 13,
-      fontWeight: '600',
-    },
+    btnOutlineText: { fontSize: 13, fontWeight: '600' },
     btnFilled: {
       flex: 1,
       height: 40,
@@ -468,11 +417,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    btnFilledText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
+    btnFilledText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
     toast: {
       position: 'absolute',
       bottom: 100,
@@ -487,10 +432,6 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       shadowRadius: 8,
       elevation: 8,
     },
-    toastText: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontWeight: '600',
-    },
+    toastText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   });
 }
