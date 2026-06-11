@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useState, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { FARM } from '@/constants/MockData';
 
@@ -88,6 +89,7 @@ export default function HomeScreen() {
   const isDark = scheme === 'dark';
   const C = isDark ? Colors.dark : Colors.light;
   const { currentUser } = useAuth();
+  const router = useRouter();
 
   const firstName = currentUser?.name.split(' ')[0] ?? 'Farmer';
   const initials = currentUser?.initials ?? '??';
@@ -246,6 +248,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={[styles.btnSecondary, { borderColor: Colors.primary }]}
                 activeOpacity={0.7}
+                onPress={() => router.push('/(tabs)/map' as any)}
               >
                 <Text style={[styles.btnSecondaryText, { color: Colors.primary }]}>
                   🗺 View on Map
