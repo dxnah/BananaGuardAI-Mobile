@@ -1,6 +1,7 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { Stack, useRouter, useSegments } from "expo-router";
+import { useEffect } from "react";
+import { StatusBar } from "react-native";
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 function AuthGuard() {
   const { currentUser } = useAuth();
@@ -8,16 +9,14 @@ function AuthGuard() {
   const router = useRouter();
 
   useEffect(() => {
-    const inTabsGroup = segments[0] === '(tabs)';
-    const inLogin = segments[0] === 'login';
-    const inSignup = segments[0] === 'signup';
+    const inTabsGroup = segments[0] === "(tabs)";
+    const inLogin = segments[0] === "login";
+    const inSignup = segments[0] === "signup";
 
     if (!currentUser && inTabsGroup) {
-      // Wala naka-login pero naa sa tabs — i-redirect sa login
-      router.replace('/login' as any);
+      router.replace("/login" as any);
     } else if (currentUser && (inLogin || inSignup)) {
-      // Naka-login na pero naa pa sa login/signup — i-redirect sa tabs
-      router.replace('/(tabs)' as any);
+      router.replace("/(tabs)" as any);
     }
   }, [currentUser, segments]);
 
@@ -27,6 +26,11 @@ function AuthGuard() {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#1B4332"
+        translucent={false}
+      />
       <AuthGuard />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
