@@ -140,7 +140,7 @@ export default function MapScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Farm Map</Text>
-        <Text style={styles.headerSub}>Talakag Banana Farm · Bukidnon</Text>
+        <Text style={styles.headerSub}>Talakagc Banana Farm · Bukidnon</Text>
       </View>
 
       {/* Map */}
