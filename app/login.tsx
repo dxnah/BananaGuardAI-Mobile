@@ -1,8 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -98,8 +100,12 @@ export default function LoginScreen() {
       >
         {/* Logo */}
         <View style={styles.topSection}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🍌</Text>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require("../assets/images/icon.bgai.png")}
+              style={styles.logo}
+              resizeMode="cover"
+            />
           </View>
           <Text style={styles.appName}>BananaGuard AI</Text>
           <Text style={styles.appTagline}>Black Sigatoka Disease Detection</Text>
@@ -125,7 +131,7 @@ export default function LoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: C.subtext }]}>USERNAME</Text>
             <View style={[styles.inputWrapper, { backgroundColor: C.input, borderColor: error ? Colors.alert : C.border }]}>
-              <Text style={styles.inputIcon}>👤</Text>
+              <Ionicons name="person-outline" size={18} color={C.subtext} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 placeholder="juandlc123"
@@ -143,7 +149,7 @@ export default function LoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: C.subtext }]}>PASSWORD</Text>
             <View style={[styles.inputWrapper, { backgroundColor: C.input, borderColor: error ? Colors.alert : C.border }]}>
-              <Text style={styles.inputIcon}>🔒</Text>
+              <Ionicons name="lock-closed-outline" size={18} color={C.subtext} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 placeholder="password12345"
@@ -154,15 +160,23 @@ export default function LoginScreen() {
                 onSubmitEditing={handleLogin}
                 returnKeyType="go"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁️"}</Text>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={C.subtext}
+                />
               </TouchableOpacity>
             </View>
           </View>
 
           {error !== "" && (
             <View style={[styles.errorBox, { backgroundColor: isDark ? "#2A1010" : "#FEF2F2" }]}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
+              <Ionicons name="warning-outline" size={16} color={Colors.alert} />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
@@ -195,9 +209,12 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </Animated.View>
 
-        <Text style={[styles.footer, { color: C.subtext }]}>
-          Bukidnon, Philippines 🇵🇭 · UAV-Powered
-        </Text>
+        <View style={styles.footerRow}>
+          <Ionicons name="location-outline" size={14} color={C.subtext} />
+          <Text style={[styles.footer, { color: C.subtext }]}>
+            Bukidnon, Philippines · UAV-Powered
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -216,21 +233,20 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       paddingVertical: 48,
     },
     topSection: { alignItems: "center", marginBottom: 32 },
-    logoCircle: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: Colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
+    logoWrap: {
       marginBottom: 12,
+      borderRadius: 20,
       shadowColor: Colors.primary,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.3,
       shadowRadius: 16,
       elevation: 8,
     },
-    logoEmoji: { fontSize: 36 },
+    logo: {
+      width: 80,
+      height: 80,
+      borderRadius: 20,
+    },
     appName: {
       fontSize: 26,
       fontWeight: "800",
@@ -271,11 +287,16 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       height: 50,
       gap: 8,
     },
-    inputIcon: { fontSize: 16 },
     input: { flex: 1, fontSize: 15, height: "100%" },
-    eyeIcon: { fontSize: 18 },
-    errorBox: { borderRadius: 8, padding: 10, marginBottom: 16 },
-    errorText: { color: Colors.alert, fontSize: 13, fontWeight: "500" },
+    errorBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 16,
+    },
+    errorText: { flex: 1, color: Colors.alert, fontSize: 13, fontWeight: "500" },
     loginBtn: {
       height: 52,
       borderRadius: 12,
@@ -300,6 +321,13 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       justifyContent: "center",
     },
     signupBtnText: { fontSize: 15, fontWeight: "600" },
-    footer: { fontSize: 12, marginTop: 24, textAlign: "center" },
+    footerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      marginTop: 24,
+    },
+    footer: { fontSize: 12, textAlign: "center" },
   });
 }

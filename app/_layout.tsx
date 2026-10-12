@@ -1,7 +1,11 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { StatusBar } from "react-native";
+import { LogBox } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+
+// Dev-only: hides the harmless "Unable to activate keep awake" red box
+LogBox.ignoreLogs(["Unable to activate keep awake"]);
 
 function AuthGuard() {
   const { currentUser } = useAuth();
@@ -26,11 +30,7 @@ function AuthGuard() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#1B4332"
-        translucent={false}
-      />
+      <StatusBar style="light" />
       <AuthGuard />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />

@@ -10,9 +10,11 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { usersAPI } from '@/services/api';
 
 const Colors = {
@@ -37,6 +39,8 @@ const Colors = {
     input: '#1C2B22',
   },
 };
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 export default function SignupScreen() {
   const scheme = useColorScheme();
@@ -114,8 +118,12 @@ export default function SignupScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.topSection}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🍌</Text>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('../assets/images/icon.bgai.png')}
+              style={styles.logo}
+              resizeMode="cover"
+            />
           </View>
           <Text style={styles.appName}>BananaGuard AI</Text>
           <Text style={styles.appTagline}>Create your farmer account</Text>
@@ -130,24 +138,24 @@ export default function SignupScreen() {
           {/* ── Account Info ── */}
           <Text style={[styles.groupHeader, { color: C.subtext }]}>ACCOUNT INFO</Text>
 
-          <Field label="FULL NAME" icon="👤" required
+          <Field label="FULL NAME" icon="person-outline" required
             placeholder="e.g. Juan de la Cruz"
             value={fullName} onChangeText={(t) => { setFullName(t); clearError(); }}
             C={C} />
 
-          <Field label="USERNAME" icon="🏷️" required
+          <Field label="USERNAME" icon="at-outline" required
             placeholder="e.g. juandelacruz"
             value={username} onChangeText={(t) => { setUsername(t); clearError(); }}
             autoCapitalize="none" C={C} />
 
-          <Field label="PASSWORD" icon="🔒" required
+          <Field label="PASSWORD" icon="lock-closed-outline" required
             placeholder="At least 8 characters"
             value={password} onChangeText={(t) => { setPassword(t); clearError(); }}
             secureTextEntry={!showPassword}
             showToggle onToggle={() => setShowPassword(!showPassword)}
             showingPassword={showPassword} C={C} />
 
-          <Field label="CONFIRM PASSWORD" icon="🔒" required
+          <Field label="CONFIRM PASSWORD" icon="lock-closed-outline" required
             placeholder="Repeat your password"
             value={confirmPassword} onChangeText={(t) => { setConfirmPassword(t); clearError(); }}
             secureTextEntry={!showPassword} C={C} />
@@ -158,12 +166,12 @@ export default function SignupScreen() {
             <Text style={styles.groupNote}>(email or phone required)</Text>
           </Text>
 
-          <Field label="EMAIL" icon="✉️"
+          <Field label="EMAIL" icon="mail-outline"
             placeholder="e.g. juandelacruz@gmail.com"
             value={email} onChangeText={(t) => { setEmail(t); clearError(); }}
             keyboardType="email-address" autoCapitalize="none" C={C} />
 
-          <Field label="PHONE NUMBER" icon="📞"
+          <Field label="PHONE NUMBER" icon="call-outline"
             placeholder="e.g. 09171234567"
             value={phone} onChangeText={(t) => { setPhone(t); clearError(); }}
             keyboardType="phone-pad" C={C} />
@@ -174,25 +182,27 @@ export default function SignupScreen() {
             <Text style={styles.groupNote}>(optional)</Text>
           </Text>
 
-          <Field label="FARM NAME" icon="🌱"
+          <Field label="FARM NAME" icon="leaf-outline"
             placeholder="e.g. Banana Farm"
             value={farmName} onChangeText={(t) => { setFarmName(t); clearError(); }}
             autoCapitalize="words" C={C} />
 
-          <Field label="LOCATION" icon="📍"
+          <Field label="LOCATION" icon="location-outline"
             placeholder="e.g. Talakag, Bukidnon"
             value={location} onChangeText={(t) => { setLocation(t); clearError(); }}
             autoCapitalize="words" C={C} />
 
           {error !== '' && (
             <View style={[styles.msgBox, { backgroundColor: isDark ? '#2A1010' : '#FEF2F2' }]}>
-              <Text style={[styles.msgText, { color: Colors.alert }]}>⚠️ {error}</Text>
+              <Ionicons name="warning-outline" size={16} color={Colors.alert} />
+              <Text style={[styles.msgText, { color: Colors.alert }]}>{error}</Text>
             </View>
           )}
           {success && (
             <View style={[styles.msgBox, { backgroundColor: isDark ? '#0F2A1A' : '#DCFCE7' }]}>
+              <Ionicons name="checkmark-circle-outline" size={16} color={Colors.healthy} />
               <Text style={[styles.msgText, { color: Colors.healthy }]}>
-                ✅ Account created! Redirecting to login...
+                Account created! Redirecting to login...
               </Text>
             </View>
           )}
@@ -215,7 +225,8 @@ export default function SignupScreen() {
             onPress={() => router.back()}
             activeOpacity={0.7}
           >
-            <Text style={[styles.backBtnText, { color: C.subtext }]}>← Back to Login</Text>
+            <Ionicons name="arrow-back" size={16} color={C.subtext} />
+            <Text style={[styles.backBtnText, { color: C.subtext }]}>Back to Login</Text>
           </TouchableOpacity>
         </View>
 
@@ -227,7 +238,7 @@ export default function SignupScreen() {
 
 // ── Reusable Field ────────────────────────────────────────────────────────────
 type FieldProps = {
-  label: string; icon: string; placeholder: string;
+  label: string; icon: IconName; placeholder: string;
   value: string; onChangeText: (t: string) => void;
   required?: boolean; secureTextEntry?: boolean;
   showToggle?: boolean; onToggle?: () => void; showingPassword?: boolean;
@@ -245,7 +256,7 @@ function Field({ label, icon, placeholder, value, onChangeText, required,
         {label}{required && <Text style={{ color: Colors.alert }}> *</Text>}
       </Text>
       <View style={[fS.wrapper, { backgroundColor: C.input, borderColor: C.border }]}>
-        <Text style={fS.icon}>{icon}</Text>
+        <Ionicons name={icon} size={18} color={C.subtext} />
         <TextInput
           style={[fS.input, { color: C.text }]}
           placeholder={placeholder} placeholderTextColor={C.subtext}
@@ -254,8 +265,15 @@ function Field({ label, icon, placeholder, value, onChangeText, required,
           autoCapitalize={autoCapitalize} autoCorrect={false}
         />
         {showToggle && (
-          <TouchableOpacity onPress={onToggle}>
-            <Text style={fS.eye}>{showingPassword ? '🙈' : '👁️'}</Text>
+          <TouchableOpacity
+            onPress={onToggle}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={showingPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={C.subtext}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -271,9 +289,7 @@ const fS = StyleSheet.create({
     borderRadius: 10, borderWidth: 1.5,
     paddingHorizontal: 12, height: 50, gap: 8,
   },
-  icon: { fontSize: 16 },
   input: { flex: 1, fontSize: 15, height: '100%' },
-  eye: { fontSize: 18 },
 });
 
 function makeStyles(C: typeof Colors.light, isDark: boolean) {
@@ -281,14 +297,13 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
     container: { flex: 1 },
     scroll: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 60 },
     topSection: { alignItems: 'center', marginBottom: 28 },
-    logoCircle: {
-      width: 70, height: 70, borderRadius: 35,
-      backgroundColor: Colors.primary,
-      alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    logoWrap: {
+      marginBottom: 10,
+      borderRadius: 18,
       shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
     },
-    logoEmoji: { fontSize: 30 },
+    logo: { width: 70, height: 70, borderRadius: 18 },
     appName: { fontSize: 22, fontWeight: '800', color: Colors.primary },
     appTagline: { fontSize: 13, color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 4 },
     formCard: {
@@ -300,11 +315,17 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
     formSub: { fontSize: 13, marginBottom: 20 },
     groupHeader: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12, marginTop: 4 },
     groupNote: { fontSize: 11, fontWeight: '400', color: '#9CA3AF' },
-    msgBox: { borderRadius: 8, padding: 10, marginBottom: 14 },
-    msgText: { fontSize: 13, fontWeight: '500' },
+    msgBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 8, padding: 10, marginBottom: 14,
+    },
+    msgText: { flex: 1, fontSize: 13, fontWeight: '500' },
     submitBtn: { height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
     submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-    backBtn: { alignItems: 'center', marginTop: 16, paddingVertical: 8 },
+    backBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 6, marginTop: 16, paddingVertical: 8,
+    },
     backBtnText: { fontSize: 14, fontWeight: '500' },
   });
 }

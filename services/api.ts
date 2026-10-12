@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'http://192.168.1.245:8000'; 
+const BASE_URL = 'http://192.168.100.8:8000'; 
 
 const TOKEN_KEY   = 'bananaguard_access_token';
 const REFRESH_KEY = 'bananaguard_refresh_token';

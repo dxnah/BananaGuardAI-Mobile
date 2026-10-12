@@ -2,6 +2,7 @@ import { FARM } from "@/constants/MockData";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+    Image,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -122,21 +123,28 @@ export default function HomeScreen() {
         backgroundColor={Colors.primary}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>
-              {getGreeting()}, {firstName}! 👋
-            </Text>
-            <Text style={styles.farmName}>🌱 {FARM.name}</Text>
-            <Text style={styles.dateText}>{getCurrentDate()}</Text>
-          </View>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-        </View>
+{/* Header */}
+<View style={styles.header}>
+  <View style={styles.headerTop}>
+    <View style={styles.headerLeft}>
+      <Image
+        source={require("../../assets/images/icon.bgai.png")}
+        style={styles.logo}
+        resizeMode="cover"
+      />
+      <View style={{ flexShrink: 1 }}>
+        <Text style={styles.greeting}>
+          {getGreeting()}, {firstName}! 👋
+        </Text>
+        <Text style={styles.farmName}>🌱 {FARM.name}</Text>
+        <Text style={styles.dateText}>{getCurrentDate()}</Text>
       </View>
+    </View>
+    <View style={styles.avatarCircle}>
+      <Text style={styles.avatarText}>{initials}</Text>
+    </View>
+  </View>
+</View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -362,12 +370,23 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       backgroundColor: Colors.primary,
       paddingTop: 56,
       paddingBottom: 24,
-      paddingHorizontal: 20,
+      paddingHorizontal: 15,
     },
-    headerTop: {
+        headerTop: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "flex-start",
+      alignItems: "center",
+    },
+    headerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flex: 1,
+    },
+    logo: {
+      width: 52,
+      height: 52,
+      borderRadius: 12,
     },
     greeting: {
       fontSize: 22,
