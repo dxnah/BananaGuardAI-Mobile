@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { usersAPI, alertsAPI, clearTokens, UserOut, AlertOut } from '@/services/api';
+import { usersAPI, alertsAPI, clearTokens, ApiError, UserOut, AlertOut } from '@/services/api';
 
 type AuthContextType = {
   currentUser: UserOut | null;
@@ -31,6 +31,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userAlerts, setUserAlerts]   = useState<AlertOut[]>([]);
   const [loading, setLoading]         = useState(true);
 
+  const fetchAlerts = useCallback(async () => {
+    try {
+      setUserAlerts(await alertsAPI.getMine());
+    } catch {
+      /* keep what we already have; the next refresh will try again */
+    }
+  }, []);
+
+  // Restore the session on app start
   useEffect(() => {
     (async () => {
       try {
@@ -38,25 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storedId) {
           const user = await usersAPI.getMe();
           setCurrentUser(user);
-          await fetchAlertsForUser(user.user_id);
+          await fetchAlerts();
         }
-      } catch {
-        await clearTokens();
-        await AsyncStorage.removeItem(USER_ID_KEY);
+      } catch (e) {
+        // Only sign out when the session is really invalid, not when the phone is just offline
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          await clearTokens();
+          await AsyncStorage.removeItem(USER_ID_KEY);
+        }
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [fetchAlerts]);
 
-  const fetchAlertsForUser = async (user_id: number) => {
-    try {
-      const all = await alertsAPI.getAll();
-      setUserAlerts(all.filter((a: AlertOut) => a.user_id === user_id));
-    } catch {
-      setUserAlerts([]);
-    }
-  };
+  // New alerts from the UAV show up on their own every minute
+  useEffect(() => {
+    if (!currentUser) return;
+    const id = setInterval(fetchAlerts, 60_000);
+    return () => clearInterval(id);
+  }, [currentUser, fetchAlerts]);
 
   const login = async (
     username: string,
@@ -66,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const user = await usersAPI.login(username, password);
       await AsyncStorage.setItem(USER_ID_KEY, String(user.user_id));
       setCurrentUser(user);
-      await fetchAlertsForUser(user.user_id);
+      await fetchAlerts();
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message ?? 'Could not connect to server.' };
@@ -89,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshAlerts = async () => {
-    if (currentUser) await fetchAlertsForUser(currentUser.user_id);
+    if (currentUser) await fetchAlerts();
   };
 
   const acknowledgeAlert = async (alert_id: number) => {

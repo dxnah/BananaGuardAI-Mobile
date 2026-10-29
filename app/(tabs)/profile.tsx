@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   useColorScheme,
   StatusBar,
-  Switch,
   TextInput,
   ActivityIndicator,
   Modal,
@@ -15,7 +14,6 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { usersAPI } from '@/services/api';
-import { FARM } from '@/constants/MockData';
 
 const Colors = {
   primary: '#1B4332',
@@ -54,20 +52,10 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { currentUser, logout, refreshUser, refreshAlerts } = useAuth();
 
-  // Notification toggles (local UI state)
-  const [pushNotifs, setPushNotifs]       = useState(true);
-  const [smsNotifs, setSmsNotifs]         = useState(false);
-  const [soundVibration, setSoundVibration] = useState(true);
-  const [receiveAlerts, setReceiveAlerts] = useState(true);
-
   // Edit modal state — pre-filled with all signup fields
   const [editVisible, setEditVisible]     = useState(false);
   const [editFullName, setEditFullName]   = useState('');
-  const [editUsername, setEditUsername]   = useState('');
-  const [editEmail, setEditEmail]         = useState('');
   const [editPhone, setEditPhone]         = useState('');
-  const [editFarmName, setEditFarmName]   = useState('');
-  const [editLocation, setEditLocation]   = useState('');
   const [editLoading, setEditLoading]     = useState(false);
   const [editError, setEditError]         = useState('');
   const [editSuccess, setEditSuccess]     = useState(false);
@@ -90,38 +78,25 @@ export default function ProfileScreen() {
   const openEdit = () => {
     // Pre-fill with current user data
     setEditFullName(currentUser?.full_name ?? '');
-    setEditUsername(currentUser?.username ?? '');
-    setEditEmail(currentUser?.email ?? '');
     setEditPhone(currentUser?.phone_number ?? '');
-    setEditFarmName(currentUser?.farm_name ?? '');
-    setEditLocation(currentUser?.location ?? '');
     setEditError('');
     setEditSuccess(false);
     setEditVisible(true);
   };
 
   const handleSaveEdit = async () => {
-    if (!editFullName.trim()) { setEditError('Full name cannot be empty.'); return; }
-    if (!editUsername.trim()) { setEditError('Username cannot be empty.'); return; }
-    if (!editEmail.trim() && !editPhone.trim()) {
-      setEditError('At least an email or phone number is required.');
-      return;
-    }
-    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
-      setEditError('Please enter a valid email address.');
+    if (!editFullName.trim()) { setEditError('Farmer name cannot be empty.'); return; }
+    if (!/^(?:\+?63|0)9\d{9}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
+      setEditError('Enter a valid mobile number, e.g. 09171234567.');
       return;
     }
 
     setEditLoading(true);
     setEditError('');
     try {
-      await usersAPI.update(currentUser!.user_id, {
+      await usersAPI.updateMe({
         full_name:    editFullName.trim(),
-        username:     editUsername.trim(),
-        email:        editEmail.trim() || undefined,
-        phone_number: editPhone.trim() || undefined,
-        farm_name:    editFarmName.trim() || undefined,
-        location:     editLocation.trim() || undefined,
+        phone_number: editPhone.trim(),
       });
       setEditSuccess(true);
       await refreshUser();   // re-fetch user from backend so profile display updates
@@ -175,7 +150,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
-        <Text style={styles.headerSub}>Account & Settings</Text>
+        <Text style={styles.headerSub}>Your account</Text>
       </View>
 
       <ScrollView
@@ -192,14 +167,13 @@ export default function ProfileScreen() {
               {currentUser.full_name}
             </Text>
             <Text style={[styles.profileFarm, { color: Colors.primary }]}>
-              🌱 {currentUser.farm_name ?? FARM.name}
+              @{currentUser.username}
             </Text>
-            <Text style={[styles.profileRegion, { color: C.subtext }]}>
-              👷 Farm Worker
-            </Text>
-            <Text style={[styles.profileRegion, { color: C.subtext }]}>
-              📍 {currentUser.location ?? FARM.region}
-            </Text>
+            {currentUser.phone_number ? (
+              <Text style={[styles.profileRegion, { color: C.subtext }]}>
+                📞 {currentUser.phone_number}
+              </Text>
+            ) : null}
           </View>
           <TouchableOpacity
             style={[styles.editBtn, { borderColor: Colors.primary }]}
@@ -214,12 +188,9 @@ export default function ProfileScreen() {
         <Text style={[styles.sectionLabel, { color: C.subtext }]}>ACCOUNT DETAILS</Text>
         <View style={[styles.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
           {[
-            { label: 'Full Name',     value: currentUser.full_name },
+            { label: 'Farmer Name',   value: currentUser.full_name },
             { label: 'Username',      value: currentUser.username },
-            { label: 'Email',         value: currentUser.email ?? '—' },
-            { label: 'Phone',         value: currentUser.phone_number ?? '—' },
-            { label: 'Farm Name',     value: currentUser.farm_name ?? '—' },
-            { label: 'Location',      value: currentUser.location ?? '—' },
+            { label: 'Mobile Number', value: currentUser.phone_number ?? '—' },
           ].map((row, index, arr) => (
             <View
               key={row.label}
@@ -231,85 +202,6 @@ export default function ProfileScreen() {
               <Text style={[styles.detailLabel, { color: C.subtext }]}>{row.label}</Text>
               <Text style={[styles.detailValue, { color: C.text }]}>{row.value}</Text>
             </View>
-          ))}
-        </View>
-
-        {/* ── Farm Details ── */}
-        <Text style={[styles.sectionLabel, { color: C.subtext }]}>FARM DETAILS</Text>
-        <View style={[styles.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
-          {[
-            { label: 'Farm Name',   value: currentUser.farm_name ?? FARM.name },
-            { label: 'Coordinates', value: FARM.coordinates },
-            { label: 'Farm Area',   value: FARM.farmArea },
-            { label: 'Region',      value: currentUser.location ?? FARM.region },
-          ].map((row, index, arr) => (
-            <View
-              key={row.label}
-              style={[
-                styles.detailRow,
-                { borderColor: C.border, borderBottomWidth: index === arr.length - 1 ? 0 : 1 },
-              ]}
-            >
-              <Text style={[styles.detailLabel, { color: C.subtext }]}>{row.label}</Text>
-              <Text style={[styles.detailValue, { color: C.text }]}>{row.value}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* ── Notifications ── */}
-        <Text style={[styles.sectionLabel, { color: C.subtext }]}>NOTIFICATIONS</Text>
-        <View style={[styles.settingsCard, { backgroundColor: C.card, borderColor: C.border }]}>
-          {[
-            { icon: '🔔', title: 'Receive Alerts from Admin', sub: 'Get notified when UAV detects disease', value: receiveAlerts, setter: setReceiveAlerts },
-            { icon: '📱', title: 'Push Notifications',        sub: 'Alerts on your phone',                  value: pushNotifs,    setter: setPushNotifs },
-            { icon: '💬', title: 'SMS Notifications',         sub: 'Receive alerts via SMS',                value: smsNotifs,     setter: setSmsNotifs },
-            { icon: '🔊', title: 'Sound & Vibration',         sub: 'Audio alerts for new detections',       value: soundVibration,setter: setSoundVibration },
-          ].map((item, index, arr) => (
-            <View
-              key={item.title}
-              style={[styles.settingRow, { borderColor: C.border, borderBottomWidth: index === arr.length - 1 ? 0 : 1 }]}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={styles.settingIcon}>{item.icon}</Text>
-                <View>
-                  <Text style={[styles.settingTitle, { color: C.text }]}>{item.title}</Text>
-                  <Text style={[styles.settingSub, { color: C.subtext }]}>{item.sub}</Text>
-                </View>
-              </View>
-              <Switch
-                value={item.value}
-                onValueChange={item.setter}
-                trackColor={{ false: C.border, true: Colors.primary }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* ── App Settings ── */}
-        <Text style={[styles.sectionLabel, { color: C.subtext }]}>APP SETTINGS</Text>
-        <View style={[styles.settingsCard, { backgroundColor: C.card, borderColor: C.border }]}>
-          {[
-            { icon: '✉️', title: 'Email',                  value: currentUser.email ?? '—' },
-            { icon: '📞', title: 'Phone',                  value: currentUser.phone_number ?? '—' },
-            { icon: '🌐', title: 'Language',               value: 'English' },
-            { icon: 'ℹ️', title: 'About BananaGuard AI',  value: '' },
-            { icon: '📋', title: 'App Version',            value: 'v1.0.0' },
-          ].map((item, index, arr) => (
-            <TouchableOpacity
-              key={item.title}
-              style={[styles.settingRow, { borderColor: C.border, borderBottomWidth: index === arr.length - 1 ? 0 : 1 }]}
-              activeOpacity={0.7}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={styles.settingIcon}>{item.icon}</Text>
-                <Text style={[styles.settingTitle, { color: C.text }]}>{item.title}</Text>
-              </View>
-              <View style={styles.settingRight}>
-                {item.value ? <Text style={[styles.settingValue, { color: C.subtext }]}>{item.value}</Text> : null}
-                <Text style={[styles.chevron, { color: C.subtext }]}>›</Text>
-              </View>
-            </TouchableOpacity>
           ))}
         </View>
 
@@ -428,38 +320,16 @@ export default function ProfileScreen() {
             <Text style={[styles.modalTitle, { color: C.text }]}>Edit Profile</Text>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Account Info */}
               <Text style={[styles.modalSection, { color: C.subtext }]}>ACCOUNT INFO</Text>
               {[
-                { label: 'FULL NAME',    icon: '👤', value: editFullName, setter: setEditFullName, placeholder: 'Full name',        caps: 'words'  as const },
-                { label: 'USERNAME',     icon: '🏷️', value: editUsername, setter: setEditUsername, placeholder: 'Username',         caps: 'none'   as const },
+                { label: 'FARMER NAME',   icon: '👤', value: editFullName, setter: setEditFullName, placeholder: 'Farmer name',      caps: 'words' as const },
+                { label: 'MOBILE NUMBER', icon: '📞', value: editPhone,    setter: setEditPhone,    placeholder: 'e.g. 09171234567', caps: 'none'  as const, keyboard: 'phone-pad' as const },
               ].map((f) => (
                 <ModalField key={f.label} {...f} C={C} onEdit={() => { setEditError(''); setEditSuccess(false); }} />
               ))}
-
-              {/* Contact */}
-              <Text style={[styles.modalSection, { color: C.subtext, marginTop: 8 }]}>
-                CONTACT {''}
-                <Text style={{ fontWeight: '400' }}>(email or phone required)</Text>
+              <Text style={{ color: C.subtext, fontSize: 12, marginBottom: 8 }}>
+                Your username (@{currentUser.username}) can only be changed by the admin.
               </Text>
-              {[
-                { label: 'EMAIL',        icon: '✉️', value: editEmail,    setter: setEditEmail,    placeholder: 'Email address',    caps: 'none'   as const, keyboard: 'email-address' as const },
-                { label: 'PHONE NUMBER', icon: '📞', value: editPhone,    setter: setEditPhone,    placeholder: 'e.g. 09171234567', caps: 'none'   as const, keyboard: 'phone-pad'    as const },
-              ].map((f) => (
-                <ModalField key={f.label} {...f} C={C} onEdit={() => { setEditError(''); setEditSuccess(false); }} />
-              ))}
-
-              {/* Farm Info */}
-              <Text style={[styles.modalSection, { color: C.subtext, marginTop: 8 }]}>
-                FARM INFO {''}
-                <Text style={{ fontWeight: '400' }}>(optional)</Text>
-              </Text>
-              {[
-                { label: 'FARM NAME',    icon: '🌱', value: editFarmName,  setter: setEditFarmName,  placeholder: 'Farm name',       caps: 'words'  as const },
-                { label: 'LOCATION',     icon: '📍', value: editLocation,  setter: setEditLocation,  placeholder: 'Location',        caps: 'words'  as const },
-              ].map((f) => (
-                <ModalField key={f.label} {...f} C={C} onEdit={() => { setEditError(''); setEditSuccess(false); }} />
-              ))}
 
               {editError !== '' && (
                 <Text style={[styles.feedbackText, { color: Colors.alert }]}>⚠️ {editError}</Text>

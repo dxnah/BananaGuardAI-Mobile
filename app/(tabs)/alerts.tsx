@@ -12,6 +12,7 @@ import {
   View
 } from "react-native";
 import { useAuth } from '@/context/AuthContext';
+import { parseServerDate } from '@/utils/dates';
 
 const Colors = {
   primary: "#1B4332",
@@ -38,8 +39,9 @@ const Colors = {
 type FilterType = "all" | "active" | "resolved";
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-PH", {
+  const d = parseServerDate(iso);
+  if (!d) return "—";
+  return d.toLocaleString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -77,8 +79,12 @@ export default function AlertsScreen() {
   }, [refreshAlerts]);
 
   const handleAcknowledge = async (alert_id: number) => {
-    await acknowledgeAlert(alert_id);
-    showToast("✓ Marked as resolved");
+    try {
+      await acknowledgeAlert(alert_id);
+      showToast("✓ Marked as resolved");
+    } catch (e: any) {
+      showToast(e?.message ?? "Could not update this alert");
+    }
   };
 
   const showToast = (msg: string) => {

@@ -42,6 +42,8 @@ const Colors = {
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
+const PH_MOBILE = /^(?:\+?63|0)9\d{9}$/;
+
 export default function SignupScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -52,10 +54,7 @@ export default function SignupScreen() {
   const [username, setUsername]               = useState('');
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [email, setEmail]                     = useState('');
   const [phone, setPhone]                     = useState('');
-  const [farmName, setFarmName]               = useState('');
-  const [location, setLocation]               = useState('');
   const [showPassword, setShowPassword]       = useState(false);
   const [error, setError]                     = useState('');
   const [success, setSuccess]                 = useState(false);
@@ -72,12 +71,8 @@ export default function SignupScreen() {
     if (!password)               { setError('Password is required.'); return; }
     if (password.length < 8)    { setError('Password must be at least 8 characters.'); return; }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
-    if (!email.trim() && !phone.trim()) {
-      setError('Please provide at least an email or phone number.');
-      return;
-    }
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Please enter a valid email address.');
+    if (!PH_MOBILE.test(phone.replace(/[\s\-()]/g, ''))) {
+      setError('Enter a valid mobile number, e.g. 09171234567.');
       return;
     }
 
@@ -86,11 +81,8 @@ export default function SignupScreen() {
       await usersAPI.create({
         full_name:    fullName.trim(),
         username:     username.trim(),
+        phone_number: phone.trim(),
         password,
-        email:        email.trim() || undefined,
-        phone_number: phone.trim() || undefined,
-        farm_name:    farmName.trim() || undefined,
-        location:     location.trim() || undefined,
       });
       setSuccess(true);
       setTimeout(() => router.replace('/login' as any), 2000);
@@ -132,21 +124,23 @@ export default function SignupScreen() {
         <View style={[styles.formCard, { backgroundColor: C.card, borderColor: C.border }]}>
           <Text style={[styles.formTitle, { color: C.text }]}>Sign Up</Text>
           <Text style={[styles.formSub, { color: C.subtext }]}>
-            Register to start monitoring your farm
+            Register to receive disease alerts for your farm
           </Text>
 
-          {/* ── Account Info ── */}
-          <Text style={[styles.groupHeader, { color: C.subtext }]}>ACCOUNT INFO</Text>
-
-          <Field label="FULL NAME" icon="person-outline" required
+          <Field label="FARMER NAME" icon="person-outline" required
             placeholder="e.g. Juan de la Cruz"
             value={fullName} onChangeText={(t) => { setFullName(t); clearError(); }}
-            C={C} />
+            autoCapitalize="words" C={C} />
 
           <Field label="USERNAME" icon="at-outline" required
             placeholder="e.g. juandelacruz"
             value={username} onChangeText={(t) => { setUsername(t); clearError(); }}
             autoCapitalize="none" C={C} />
+
+          <Field label="MOBILE NUMBER" icon="call-outline" required
+            placeholder="e.g. 09171234567"
+            value={phone} onChangeText={(t) => { setPhone(t); clearError(); }}
+            keyboardType="phone-pad" C={C} />
 
           <Field label="PASSWORD" icon="lock-closed-outline" required
             placeholder="At least 8 characters"
@@ -159,38 +153,6 @@ export default function SignupScreen() {
             placeholder="Repeat your password"
             value={confirmPassword} onChangeText={(t) => { setConfirmPassword(t); clearError(); }}
             secureTextEntry={!showPassword} C={C} />
-
-          {/* ── Contact ── */}
-          <Text style={[styles.groupHeader, { color: C.subtext, marginTop: 8 }]}>
-            CONTACT {''}
-            <Text style={styles.groupNote}>(email or phone required)</Text>
-          </Text>
-
-          <Field label="EMAIL" icon="mail-outline"
-            placeholder="e.g. juandelacruz@gmail.com"
-            value={email} onChangeText={(t) => { setEmail(t); clearError(); }}
-            keyboardType="email-address" autoCapitalize="none" C={C} />
-
-          <Field label="PHONE NUMBER" icon="call-outline"
-            placeholder="e.g. 09171234567"
-            value={phone} onChangeText={(t) => { setPhone(t); clearError(); }}
-            keyboardType="phone-pad" C={C} />
-
-          {/* ── Farm Info ── */}
-          <Text style={[styles.groupHeader, { color: C.subtext, marginTop: 8 }]}>
-            FARM INFO {''}
-            <Text style={styles.groupNote}>(optional)</Text>
-          </Text>
-
-          <Field label="FARM NAME" icon="leaf-outline"
-            placeholder="e.g. Banana Farm"
-            value={farmName} onChangeText={(t) => { setFarmName(t); clearError(); }}
-            autoCapitalize="words" C={C} />
-
-          <Field label="LOCATION" icon="location-outline"
-            placeholder="e.g. Talakag, Bukidnon"
-            value={location} onChangeText={(t) => { setLocation(t); clearError(); }}
-            autoCapitalize="words" C={C} />
 
           {error !== '' && (
             <View style={[styles.msgBox, { backgroundColor: isDark ? '#2A1010' : '#FEF2F2' }]}>

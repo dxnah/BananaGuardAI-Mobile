@@ -6,41 +6,6 @@ export const FARM = {
   farmArea: '10.5 hectares',
 };
 
-export const FARMERS = [
-  {
-    id: '1',
-    name: 'Dinah V. Caburatan',
-    initials: 'DC',
-    email: 'dinahcaburatan@gmail.com',
-    password: 'pass1',
-    role: 'Farm Worker',
-  },
-  {
-    id: '2',
-    name: 'Jhonara Fay Payot',
-    initials: 'JP',
-    email: 'jhonarapayot@gmail.com',
-    password: 'pass2',
-    role: 'Farm Worker',
-  },
-  {
-    id: '3',
-    name: 'Florie Jayne Soler',
-    initials: 'FS',
-    email: 'floriesoler@gmail.com',
-    password: 'pass3',
-    role: 'Farm Worker',
-  },
-  {
-    id: '4',
-    name: 'Stella Marie Galinada',
-    initials: 'SG',
-    email: 'stellamariegalinada@gmail.com',
-    password: 'pass4',
-    role: 'Farm Worker',
-  },
-];
-
 export const ALERTS = [
   {
     id: '1',

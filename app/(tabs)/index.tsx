@@ -2,6 +2,7 @@ import { FARM } from "@/constants/MockData";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+    Alert,
     Image,
     RefreshControl,
     ScrollView,
@@ -13,6 +14,7 @@ import {
     View,
 } from "react-native";
 import { useAuth } from '@/context/AuthContext';
+import { formatDateTime } from '@/utils/dates';
 
 const Colors = {
   primary: "#1B4332",
@@ -36,39 +38,6 @@ const Colors = {
   },
 };
 
-const ALERTS = [
-  {
-    id: "1",
-    lat: "8.1234° N",
-    lng: "124.5678° E",
-    detectionClass: "Black Sigatoka",
-    dateReceived: "Jun 1, 2025 · 8:30 AM",
-    status: "active",
-    uavScanId: "UAV-20250601-001",
-    message: "Leaf removal advised immediately.",
-  },
-  {
-    id: "2",
-    lat: "8.1290° N",
-    lng: "124.5701° E",
-    detectionClass: "Black Sigatoka",
-    dateReceived: "May 28, 2025 · 2:15 PM",
-    status: "resolved",
-    uavScanId: "UAV-20250528-003",
-    message: "Fungicide application advised.",
-  },
-  {
-    id: "3",
-    lat: "8.1210° N",
-    lng: "124.5655° E",
-    detectionClass: "Black Sigatoka",
-    dateReceived: "May 25, 2025 · 10:00 AM",
-    status: "resolved",
-    uavScanId: "UAV-20250525-002",
-    message: "Affected leaves removed.",
-  },
-];
-
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -89,7 +58,7 @@ export default function HomeScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const C = isDark ? Colors.dark : Colors.light;
-  const { currentUser } = useAuth();
+  const { currentUser, userAlerts, refreshAlerts, acknowledgeAlert } = useAuth();
   const router = useRouter();
 
   const firstName = currentUser?.full_name?.split(' ')[0] ?? 'Farmer';
@@ -97,21 +66,24 @@ export default function HomeScreen() {
   ? currentUser.full_name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()
   : '??';
 
-  const [alerts, setAlerts] = useState(ALERTS);
   const [refreshing, setRefreshing] = useState(false);
 
-  const activeAlerts = alerts.filter((a) => a.status === "active");
-  const resolvedAlerts = alerts.filter((a) => a.status === "resolved");
+  const alerts = userAlerts;
+  const activeAlerts = alerts.filter((a) => !a.acknowledged);
+  const resolvedAlerts = alerts.filter((a) => a.acknowledged);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
-  }, []);
+    await refreshAlerts();
+    setRefreshing(false);
+  }, [refreshAlerts]);
 
-  const markResolved = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "resolved" } : a)),
-    );
+  const markResolved = async (alert_id: number) => {
+    try {
+      await acknowledgeAlert(alert_id);
+    } catch (e: any) {
+      Alert.alert("Could not update this alert", e?.message ?? "Please try again.");
+    }
   };
 
   const styles = makeStyles(C, isDark);
@@ -255,28 +227,35 @@ export default function HomeScreen() {
           RECENT ALERTS
         </Text>
 
-        {alerts.map((alert) => (
+        {alerts.length === 0 && (
+          <View style={[styles.alertCard, { backgroundColor: C.card, borderColor: C.border, alignItems: "center" }]}>
+            <Text style={[styles.alertMessage, { color: C.subtext, textAlign: "center" }]}>
+              No alerts yet. You will be notified here when the UAV detects a problem.
+            </Text>
+          </View>
+        )}
+
+        {alerts.slice(0, 5).map((alert) => (
           <View
-            key={alert.id}
+            key={alert.alert_id}
             style={[
               styles.alertCard,
               {
                 backgroundColor: C.card,
-                borderColor:
-                  alert.status === "active" ? Colors.alert : C.border,
-                borderLeftWidth: alert.status === "active" ? 4 : 1,
+                borderColor: !alert.acknowledged ? Colors.alert : C.border,
+                borderLeftWidth: !alert.acknowledged ? 4 : 1,
               },
             ]}
           >
             <View style={styles.alertHeader}>
               <View style={styles.alertCoords}>
-                <Text style={styles.coordsIcon}>📍</Text>
+                <Text style={styles.coordsIcon}>🆔</Text>
                 <View>
                   <Text style={[styles.coordsText, { color: C.text }]}>
-                    {alert.lat}, {alert.lng}
+                    Alert #{alert.alert_id}
                   </Text>
                   <Text style={[styles.scanId, { color: C.subtext }]}>
-                    {alert.uavScanId}
+                    {formatDateTime(alert.alert_sent_at)}
                   </Text>
                 </View>
               </View>
@@ -284,27 +263,19 @@ export default function HomeScreen() {
                 style={[
                   styles.statusBadge,
                   {
-                    backgroundColor:
-                      alert.status === "active"
-                        ? "#FEF2F2"
-                        : isDark
-                          ? "#1F2937"
-                          : "#F3F4F6",
+                    backgroundColor: !alert.acknowledged
+                      ? "#FEF2F2"
+                      : isDark ? "#1F2937" : "#F3F4F6",
                   },
                 ]}
               >
                 <Text
                   style={[
                     styles.statusText,
-                    {
-                      color:
-                        alert.status === "active"
-                          ? Colors.alert
-                          : Colors.resolved,
-                    },
+                    { color: !alert.acknowledged ? Colors.alert : Colors.resolved },
                   ]}
                 >
-                  {alert.status === "active" ? "● ACTIVE" : "✓ RESOLVED"}
+                  {!alert.acknowledged ? "● ACTIVE" : "✓ RESOLVED"}
                 </Text>
               </View>
             </View>
@@ -317,16 +288,13 @@ export default function HomeScreen() {
                 ]}
               >
                 <Text style={[styles.diseaseText, { color: Colors.accent }]}>
-                  🍌 {alert.detectionClass}
+                  {alert.detection_id ? "🍌 UAV Disease Alert" : "📢 Message from Admin"}
                 </Text>
               </View>
-              <Text style={[styles.dateText2, { color: C.subtext }]}>
-                {alert.dateReceived}
-              </Text>
             </View>
 
             <Text style={[styles.alertMessage, { color: C.subtext }]}>
-              {alert.message}
+              {alert.alert_message ?? "Disease alert from UAV scan."}
             </Text>
 
             <View style={styles.cardActions}>
@@ -335,20 +303,15 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
                 onPress={() => router.push("/(tabs)/map" as any)}
               >
-                <Text
-                  style={[styles.btnSecondaryText, { color: Colors.primary }]}
-                >
+                <Text style={[styles.btnSecondaryText, { color: Colors.primary }]}>
                   🗺 View on Map
                 </Text>
               </TouchableOpacity>
-              {alert.status === "active" && (
+              {!alert.acknowledged && (
                 <TouchableOpacity
-                  style={[
-                    styles.btnPrimary,
-                    { backgroundColor: Colors.primary },
-                  ]}
+                  style={[styles.btnPrimary, { backgroundColor: Colors.primary }]}
                   activeOpacity={0.7}
-                  onPress={() => markResolved(alert.id)}
+                  onPress={() => markResolved(alert.alert_id)}
                 >
                   <Text style={styles.btnPrimaryText}>✓ Mark Resolved</Text>
                 </TouchableOpacity>
@@ -356,6 +319,14 @@ export default function HomeScreen() {
             </View>
           </View>
         ))}
+
+        {alerts.length > 5 && (
+          <TouchableOpacity onPress={() => router.push("/(tabs)/alerts" as any)} style={{ alignItems: "center", paddingVertical: 8 }}>
+            <Text style={{ color: Colors.primary, fontWeight: "600", fontSize: 13 }}>
+              See all {alerts.length} alerts
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>
