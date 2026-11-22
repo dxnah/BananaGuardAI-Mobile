@@ -1,13 +1,14 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Same server as the web admin. To test against a backend on your own computer, create a
 // ".env" file with EXPO_PUBLIC_API_URL=http://<your-computer-ip>:8000 and restart Expo.
 const BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL ?? 'https://bananaguardai-backend-production.up.railway.app'
-).replace(/\/$/, '');
+  process.env.EXPO_PUBLIC_API_URL ??
+  "https://bananaguardai-backend-production.up.railway.app"
+).replace(/\/$/, "");
 
-const TOKEN_KEY   = 'bananaguard_access_token';
-const REFRESH_KEY = 'bananaguard_refresh_token';
+const TOKEN_KEY = "bananaguard_access_token";
+const REFRESH_KEY = "bananaguard_refresh_token";
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -26,7 +27,10 @@ export async function getStoredToken(): Promise<string | null> {
 }
 
 export async function storeTokens(access: string, refresh: string) {
-  await AsyncStorage.multiSet([[TOKEN_KEY, access], [REFRESH_KEY, refresh]]);
+  await AsyncStorage.multiSet([
+    [TOKEN_KEY, access],
+    [REFRESH_KEY, refresh],
+  ]);
 }
 
 export async function clearTokens() {
@@ -36,7 +40,7 @@ export async function clearTokens() {
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getStoredToken();
   return {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -44,12 +48,12 @@ async function authHeaders(): Promise<Record<string, string>> {
 // FastAPI sends plain text for most errors but a list for validation errors
 function readableError(body: any, fallback: string): string {
   const detail = body?.detail;
-  if (typeof detail === 'string') return detail;
+  if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     const msg = detail
-      .map((d) => String(d?.msg ?? '').replace(/^Value error, /, ''))
+      .map((d) => String(d?.msg ?? "").replace(/^Value error, /, ""))
       .filter(Boolean)
-      .join('. ');
+      .join(". ");
     return msg || fallback;
   }
   return fallback;
@@ -59,11 +63,31 @@ async function send(url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch {
-    throw new ApiError('Cannot reach the server. Check your internet connection.', 0);
+    throw new ApiError(
+      "Cannot reach the server. Check your internet connection.",
+      0,
+    );
   }
 }
 
-async function request<T>(method: string, path: string, body?: object, retried = false): Promise<T> {
+// NEW: turns a failed reply from a public (not signed-in) request into an ApiError
+async function publicError(res: Response): Promise<ApiError> {
+  if (res.status === 429) {
+    return new ApiError("Too many attempts. Please try again in a while.", 429);
+  }
+  const body = await res.json().catch(() => null);
+  return new ApiError(
+    readableError(body, "Something went wrong. Please try again."),
+    res.status,
+  );
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: object,
+  retried = false,
+): Promise<T> {
   const headers = await authHeaders();
   const res = await send(`${BASE_URL}${path}`, {
     method,
@@ -83,7 +107,10 @@ async function request<T>(method: string, path: string, body?: object, retried =
 
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new ApiError(readableError(error, `Request failed (${res.status})`), res.status);
+    throw new ApiError(
+      readableError(error, `Request failed (${res.status})`),
+      res.status,
+    );
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -94,27 +121,27 @@ async function request<T>(method: string, path: string, body?: object, retried =
 // ─────────────────────────────────────────────────────────────
 
 export interface UserOut {
-  user_id:      number;
-  full_name:    string;
-  username:     string;
+  user_id: number;
+  full_name: string;
+  username: string;
   phone_number: string | null;
-  created_at:   string | null;
+  created_at: string | null;
 }
 
 export interface UserLoginResponse {
-  access_token:  string;
+  access_token: string;
   refresh_token: string;
-  token_type:    string;
-  user:          UserOut;
+  token_type: string;
+  user: UserOut;
 }
 
 export interface AlertOut {
-  alert_id:      number;
-  detection_id:  number | null;
-  user_id:       number | null;
+  alert_id: number;
+  detection_id: number | null;
+  user_id: number | null;
   alert_message: string | null;
   alert_sent_at: string | null;
-  acknowledged:  boolean;
+  acknowledged: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -125,13 +152,13 @@ export const usersAPI = {
   /** Login: stores tokens, returns the farmer */
   login: async (username: string, password: string): Promise<UserOut> => {
     const res = await send(`${BASE_URL}/users/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {
       const error = await res.json().catch(() => null);
-      throw new ApiError(readableError(error, 'Login failed'), res.status);
+      throw new ApiError(readableError(error, "Login failed"), res.status);
     }
     const data: UserLoginResponse = await res.json();
     await storeTokens(data.access_token, data.refresh_token);
@@ -141,37 +168,72 @@ export const usersAPI = {
   /** Renew the access token using the stored refresh token */
   refresh: async (): Promise<void> => {
     const refreshToken = await AsyncStorage.getItem(REFRESH_KEY);
-    if (!refreshToken) throw new ApiError('No refresh token stored', 401);
+    if (!refreshToken) throw new ApiError("No refresh token stored", 401);
     const res = await send(`${BASE_URL}/users/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
-    if (!res.ok) throw new ApiError('Session expired. Please log in again.', 401);
+    if (!res.ok)
+      throw new ApiError("Session expired. Please log in again.", 401);
     const data = await res.json();
     await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
   },
 
   /** The logged-in farmer */
-  getMe: (): Promise<UserOut> => request('GET', '/users/me'),
+  getMe: (): Promise<UserOut> => request("GET", "/users/me"),
 
   /** Sign up: farmer name, username, mobile number and password */
   create: (payload: {
-    full_name:    string;
-    username:     string;
+    full_name: string;
+    username: string;
     phone_number: string;
-    password:     string;
-  }): Promise<UserOut> => request('POST', '/users', payload),
+    password: string;
+  }): Promise<UserOut> => request("POST", "/users", payload),
 
   /** Farmers can edit their own name and mobile number (the username is set by the admin) */
-  updateMe: (payload: { full_name?: string; phone_number?: string }): Promise<UserOut> =>
-    request('PUT', '/users/me', payload),
+  updateMe: (payload: {
+    full_name?: string;
+    phone_number?: string;
+  }): Promise<UserOut> => request("PUT", "/users/me", payload),
 
   changePassword: (
     user_id: number,
-    payload: { current_password: string; new_password: string; confirm_password: string },
+    payload: {
+      current_password: string;
+      new_password: string;
+      confirm_password: string;
+    },
   ): Promise<{ message: string }> =>
-    request('PUT', `/users/${user_id}/change-password`, payload),
+    request("PUT", `/users/${user_id}/change-password`, payload),
+
+  /** NEW. Forgot password, step 1: the server texts a 6-digit code to the farmer's mobile number */
+  forgotPassword: async (
+    username: string,
+    phone_number: string,
+  ): Promise<void> => {
+    const res = await send(`${BASE_URL}/users/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, phone_number }),
+    });
+    if (!res.ok) throw await publicError(res);
+  },
+
+  /** NEW. Forgot password, step 2: check the texted code and save the new password */
+  resetPassword: async (payload: {
+    username: string;
+    code: string;
+    new_password: string;
+    confirm_password: string;
+  }): Promise<void> => {
+    const res = await send(`${BASE_URL}/users/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw await publicError(res);
+  },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -180,10 +242,11 @@ export const usersAPI = {
 
 export const alertsAPI = {
   getMine: (acknowledged?: boolean): Promise<AlertOut[]> => {
-    const query = acknowledged !== undefined ? `?acknowledged=${acknowledged}` : '';
-    return request('GET', `/users/me/alerts${query}`);
+    const query =
+      acknowledged !== undefined ? `?acknowledged=${acknowledged}` : "";
+    return request("GET", `/users/me/alerts${query}`);
   },
 
   acknowledge: (alert_id: number): Promise<AlertOut> =>
-    request('PATCH', `/users/me/alerts/${alert_id}/acknowledge`),
+    request("PATCH", `/users/me/alerts/${alert_id}/acknowledge`),
 };

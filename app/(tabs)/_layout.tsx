@@ -109,6 +109,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="forgot-password" options={{ href: null }} />
     </Tabs>
   );
 }

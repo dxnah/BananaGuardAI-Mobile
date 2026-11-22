@@ -173,6 +173,17 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          {/* Forgot password link */}
+          <TouchableOpacity
+            onPress={() => router.push("/forgot-password" as any)}
+            style={styles.forgotBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.forgotText, { color: Colors.primary }]}>
+              Forgot password?
+            </Text>
+          </TouchableOpacity>
+
           {error !== "" && (
             <View style={[styles.errorBox, { backgroundColor: isDark ? "#2A1010" : "#FEF2F2" }]}>
               <Ionicons name="warning-outline" size={16} color={Colors.alert} />
@@ -288,6 +299,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       gap: 8,
     },
     input: { flex: 1, fontSize: 15, height: "100%" },
+    forgotBtn: { alignSelf: "flex-end", marginTop: -6, marginBottom: 16 },
+    forgotText: { fontSize: 13, fontWeight: "600" },
     errorBox: {
       flexDirection: "row",
       alignItems: "center",
