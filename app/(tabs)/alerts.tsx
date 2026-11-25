@@ -1,18 +1,19 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
   Animated,
   RefreshControl,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   useColorScheme,
-  View
+  View,
 } from "react-native";
-import { useAuth } from '@/context/AuthContext';
-import { parseServerDate } from '@/utils/dates';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
+import { parseServerDate } from "@/utils/dates";
 
 const Colors = {
   primary: "#1B4332",
@@ -56,6 +57,7 @@ export default function AlertsScreen() {
   const isDark = scheme === "dark";
   const C = isDark ? Colors.dark : Colors.light;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { userAlerts, refreshAlerts, acknowledgeAlert } = useAuth();
 
   const [filter, setFilter] = useState<FilterType>("all");
@@ -81,7 +83,7 @@ export default function AlertsScreen() {
   const handleAcknowledge = async (alert_id: number) => {
     try {
       await acknowledgeAlert(alert_id);
-      showToast("✓ Marked as resolved");
+      showToast("Marked as resolved");
     } catch (e: any) {
       showToast(e?.message ?? "Could not update this alert");
     }
@@ -90,17 +92,9 @@ export default function AlertsScreen() {
   const showToast = (msg: string) => {
     setToast(msg);
     Animated.sequence([
-      Animated.timing(toastAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      Animated.timing(toastAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
       Animated.delay(2000),
-      Animated.timing(toastAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start(() => setToast(""));
   };
 
@@ -108,13 +102,8 @@ export default function AlertsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={Colors.primary}
-      />
-
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>Alerts</Text>
         <Text style={styles.headerSub}>
           {activeAlerts.length} active · {resolvedAlerts.length} resolved
@@ -124,12 +113,9 @@ export default function AlertsScreen() {
       {/* Active alert banner */}
       {activeAlerts.length > 0 && (
         <View
-          style={[
-            styles.pushBanner,
-            { backgroundColor: isDark ? "#2A1010" : "#FEF2F2" },
-          ]}
+          style={[styles.pushBanner, { backgroundColor: isDark ? "#2A1010" : "#FEF2F2" }]}
         >
-          <Text style={styles.pushIcon}>🔔</Text>
+          <Ionicons name="notifications" size={20} color={Colors.alert} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.pushTitle, { color: Colors.alert }]}>
               {activeAlerts.length} unresolved alert
@@ -150,9 +136,7 @@ export default function AlertsScreen() {
             style={[
               styles.filterChip,
               filter === f && { backgroundColor: Colors.primary },
-              filter !== f && {
-                backgroundColor: isDark ? "#1C2B22" : "#F3F4F6",
-              },
+              filter !== f && { backgroundColor: isDark ? "#1C2B22" : "#F3F4F6" },
             ]}
             onPress={() => setFilter(f)}
             activeOpacity={0.7}
@@ -188,10 +172,8 @@ export default function AlertsScreen() {
       >
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🌿</Text>
-            <Text style={[styles.emptyTitle, { color: C.text }]}>
-              No alerts here
-            </Text>
+            <Ionicons name="leaf" size={48} color={Colors.healthy} />
+            <Text style={[styles.emptyTitle, { color: C.text }]}>No alerts here</Text>
             <Text style={[styles.emptySub, { color: C.subtext }]}>
               {filter === "active"
                 ? "No active alerts. Your farm looks healthy!"
@@ -215,7 +197,12 @@ export default function AlertsScreen() {
             >
               <View style={styles.cardHeader}>
                 <View style={styles.msgRow}>
-                  <Text style={styles.pinIcon}>🍌</Text>
+                  <Ionicons
+                    name="warning-outline"
+                    size={16}
+                    color={!alert.acknowledged ? Colors.alert : Colors.resolved}
+                    style={{ marginTop: 1 }}
+                  />
                   <Text
                     style={[styles.alertMessage, { color: C.text }]}
                     numberOfLines={3}
@@ -240,21 +227,17 @@ export default function AlertsScreen() {
                   <Text
                     style={[
                       styles.statusText,
-                      {
-                        color: !alert.acknowledged
-                          ? Colors.alert
-                          : Colors.resolved,
-                      },
+                      { color: !alert.acknowledged ? Colors.alert : Colors.resolved },
                     ]}
                   >
-                    {!alert.acknowledged ? "● ACTIVE" : "✓ RESOLVED"}
+                    {!alert.acknowledged ? "ACTIVE" : "RESOLVED"}
                   </Text>
                 </View>
               </View>
 
               <View style={[styles.metaRow, { borderColor: C.border }]}>
                 <Text style={[styles.scanIdText, { color: C.subtext }]}>
-                  🆔 Alert #{alert.alert_id}
+                  Alert #{alert.alert_id}
                 </Text>
                 <Text style={[styles.dateText, { color: C.subtext }]}>
                   {formatDate(alert.alert_sent_at)}
@@ -267,22 +250,17 @@ export default function AlertsScreen() {
                   activeOpacity={0.7}
                   onPress={() => router.push("/(tabs)/map" as any)}
                 >
-                  <Text
-                    style={[styles.btnOutlineText, { color: Colors.primary }]}
-                  >
-                    🗺 View on Map
+                  <Text style={[styles.btnOutlineText, { color: Colors.primary }]}>
+                    View on Map
                   </Text>
                 </TouchableOpacity>
                 {!alert.acknowledged && (
                   <TouchableOpacity
-                    style={[
-                      styles.btnFilled,
-                      { backgroundColor: Colors.primary },
-                    ]}
+                    style={[styles.btnFilled, { backgroundColor: Colors.primary }]}
                     activeOpacity={0.7}
                     onPress={() => handleAcknowledge(alert.alert_id)}
                   >
-                    <Text style={styles.btnFilledText}>✓ Mark Resolved</Text>
+                    <Text style={styles.btnFilledText}>Mark Resolved</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -322,7 +300,6 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
     container: { flex: 1 },
     header: {
       backgroundColor: Colors.primary,
-      paddingTop: 56,
       paddingBottom: 20,
       paddingHorizontal: 20,
     },
@@ -337,7 +314,6 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       borderBottomWidth: 1,
       borderBottomColor: isDark ? "#2D3D33" : "#E5E7EB",
     },
-    pushIcon: { fontSize: 20 },
     pushTitle: { fontSize: 13, fontWeight: "700" },
     pushSub: { fontSize: 12, marginTop: 1 },
     filterRow: {
@@ -347,11 +323,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       gap: 8,
       borderBottomWidth: 1,
     },
-    filterChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 20,
-    },
+    filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
     filterChipText: { fontSize: 13, fontWeight: "600" },
     scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
     emptyState: {
@@ -360,15 +332,9 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       paddingTop: 80,
       gap: 8,
     },
-    emptyEmoji: { fontSize: 48 },
     emptyTitle: { fontSize: 18, fontWeight: "700" },
     emptySub: { fontSize: 14, textAlign: "center", paddingHorizontal: 32 },
-    alertCard: {
-      borderRadius: 12,
-      borderWidth: 1,
-      padding: 14,
-      marginBottom: 12,
-    },
+    alertCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
     cardHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -376,13 +342,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       marginBottom: 10,
       gap: 8,
     },
-    msgRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 6,
-      flex: 1,
-    },
-    pinIcon: { fontSize: 14, marginTop: 2 },
+    msgRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, flex: 1 },
     alertMessage: { fontSize: 13, fontWeight: "500", flex: 1, lineHeight: 18 },
     statusBadge: {
       paddingHorizontal: 8,

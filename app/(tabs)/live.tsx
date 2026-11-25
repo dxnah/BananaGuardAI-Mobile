@@ -1,51 +1,44 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system/legacy"; // on older SDKs: "expo-file-system"
+import * as MediaLibrary from "expo-media-library";
 import { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Easing,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
+import { getDetections, getLiveStream, getScans } from "@/services/api";
+import { parseServerDate } from "@/utils/dates";
 
 const Colors = {
   primary: "#1B4332",
   accent: "#F4A522",
   healthy: "#22C55E",
   alert: "#EF4444",
-  light: {
-    background: "#F9F7F2",
-    card: "#FFFFFF",
-    text: "#111714",
-    subtext: "#6B7280",
-    border: "#E5E7EB",
-  },
-  dark: {
-    background: "#111714",
-    card: "#1C2B22",
-    text: "#F9F7F2",
-    subtext: "#9CA3AF",
-    border: "#2D3D33",
-  },
+  light: { background: "#F9F7F2", card: "#FFFFFF", text: "#111714", subtext: "#6B7280", border: "#E5E7EB" },
+  dark: { background: "#111714", card: "#1C2B22", text: "#F9F7F2", subtext: "#9CA3AF", border: "#2D3D33" },
 };
 
 const FEED_H = 300;
-const ROWS = 6;
-const COLS = 8;
+const POLL_MS = 5000;
+const CONNECT_TIMEOUT_MS = 15000;
+const NEW_FOR_MS = 30000;
 
-// Hard-coded fake detections (x/y are % of the feed)
-const DETECTIONS = [
-  { x: 24, y: 34, conf: 94 },
-  { x: 62, y: 52, conf: 88 },
-  { x: 38, y: 66, conf: 91 },
-  { x: 70, y: 28, conf: 86 },
-];
+type Status = "idle" | "connecting" | "live" | "failed";
 
-type LogItem = { id: number; time: string; conf: number };
+const STATUS_BADGE: Record<string, { label: string; dot: string; blink: boolean }> = {
+  connecting: { label: "CONNECTING", dot: "#FBBF24", blink: true },
+  live: { label: "LIVE", dot: "#EF4444", blink: true },
+  failed: { label: "OFFLINE", dot: "#9CA3AF", blink: false },
+};
+
+const isVideoUrl = (url: string) => /\.(m3u8|mp4|webm|ogg)(\?|$)/i.test(url);
 
 function fmt(sec: number) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
@@ -53,41 +46,32 @@ function fmt(sec: number) {
   return `${m}:${s}`;
 }
 
-// One screen-height tile of banana plants. Two of these scroll to fake flight.
-function PlantTile({ shade }: { shade: boolean }) {
-  const dots = [];
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (c === 3 || c === 4) continue; // gap for the dirt path
-      const size = 20 + ((r * 7 + c * 3) % 4) * 3;
-      const sick = (r * 5 + c * 11) % 17 === 0;
-      dots.push(
-        <View
-          key={`${r}-${c}`}
-          style={{
-            position: "absolute",
-            top: r * (FEED_H / ROWS) + 8 + (c % 2) * 6,
-            left: `${c * (100 / COLS) + 2}%`,
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: sick
-              ? "#8A7A2E"
-              : (r + c) % 2 === 0
-                ? "#2E7D4A"
-                : "#3A9159",
-            opacity: shade ? 0.9 : 1,
-          }}
-        />,
-      );
-    }
-  }
-  return (
-    <View style={{ height: FEED_H, backgroundColor: "#17301F" }}>
-      <View style={styles.dirtPath} />
-      {dots}
-    </View>
-  );
+// The feed runs inside a WebView so MJPEG streams and videos behave like on the web.
+function buildHtml(url: string) {
+  const safe = url.replace(/"/g, "&quot;");
+  const media = isVideoUrl(url)
+    ? `<video id="m" src="${safe}" autoplay muted playsinline crossorigin="anonymous"></video>`
+    : `<img id="m" src="${safe}" crossorigin="anonymous" />`;
+  const evt = isVideoUrl(url) ? "playing" : "load";
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>html,body{margin:0;height:100%;background:#000}#m{width:100%;height:100%;object-fit:contain}</style>
+</head><body>${media}
+<script>
+  var m=document.getElementById('m');
+  function send(t,d){window.ReactNativeWebView.postMessage(JSON.stringify({type:t,data:d}))}
+  m.addEventListener('${evt}',function(){send('live')});
+  m.addEventListener('error',function(){send('failed')});
+  window.snap=function(){
+    try{
+      var c=document.createElement('canvas');
+      c.width=m.naturalWidth||m.videoWidth;c.height=m.naturalHeight||m.videoHeight;
+      c.getContext('2d').drawImage(m,0,0);
+      send('shot',c.toDataURL('image/jpeg',0.92).split(',')[1]);
+    }catch(e){send('shotfail')}
+  };
+  true;
+</script></body></html>`;
 }
 
 export default function LiveScreen() {
@@ -95,250 +79,326 @@ export default function LiveScreen() {
   const isDark = scheme === "dark";
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
+  const s = makeStyles(C);
 
+  // The link is set by the admin on the web. Farmers only watch.
+  const [activeUrl, setActiveUrl] = useState("");
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState<Status>("idle");
   const [paused, setPaused] = useState(false);
-  const [tick, setTick] = useState(0);
-  const [log, setLog] = useState<LogItem[]>([]);
+  const [elapsed, setElapsed] = useState(0);
+  const [flight, setFlight] = useState<any[]>([]);
+  const [serverError, setServerError] = useState(false);
+  const [toast, setToast] = useState("");
 
-  // Scrolling ground animation
-  const scroll = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (paused) {
-      scroll.stopAnimation();
-      return;
-    }
-    scroll.setValue(0);
-    const loop = Animated.loop(
-      Animated.timing(scroll, {
-        toValue: -FEED_H,
-        duration: 7000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [paused, scroll]);
-
-  // Blinking REC dot
+  const webRef = useRef<WebView>(null);
+  const urlRef = useRef("");
+  const baselineRef = useRef<number | null>(null);
+  const arrivedRef = useRef<Record<string, number>>({});
   const blink = useRef(new Animated.Value(1)).current;
+
+  // blinking dot
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(blink, {
-          toValue: 0.2,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(blink, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
+        Animated.timing(blink, { toValue: 0.2, duration: 600, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 600, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
   }, [blink]);
 
-  // 1-second clock drives timer, telemetry and detections
+  // ask the server which stream the admin connected
   useEffect(() => {
-    if (paused) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [paused]);
+    let cancelled = false;
 
-  const cycle = Math.floor(tick / 5);
-  const phase = tick % 5;
-  const detection = DETECTIONS[cycle % DETECTIONS.length];
-  const showBox = !paused && phase >= 1 && phase <= 3;
-
-  // Add to detection log when a new box appears
-  useEffect(() => {
-    if (phase === 1 && tick > 0) {
-      setLog((prev) => {
-        // Effects can re-run for the same tick (Fast Refresh / StrictMode),
-        // so never add an entry whose id is already in the log.
-        if (prev.some((l) => l.id === tick)) return prev;
-        return [
-          { id: tick, time: fmt(tick), conf: detection.conf },
-          ...prev,
-        ].slice(0, 6);
-      });
+    async function check() {
+      try {
+        const { stream_url } = await getLiveStream();
+        if (cancelled) return;
+        setServerError(false);
+        const next = (stream_url || "").trim();
+        if (next === urlRef.current) return;
+        urlRef.current = next;
+        baselineRef.current = null;
+        arrivedRef.current = {};
+        setFlight([]);
+        setElapsed(0);
+        setPaused(false);
+        setStatus(next ? "connecting" : "idle");
+        setNonce((n) => n + 1);
+        setActiveUrl(next);
+      } catch {
+        if (!cancelled) setServerError(true);
+      }
     }
-  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fake telemetry
-  const alt = 32 + ((tick * 7) % 5) * 0.4;
-  const spd = 4 + ((tick * 3) % 6) * 0.1;
-  const bat = Math.max(20, 78 - Math.floor(tick / 30));
+    check();
+    const id = setInterval(check, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
-  const styles2 = makeStyles(C);
+  function reconnect() {
+    setPaused(false);
+    setStatus("connecting");
+    setNonce((n) => n + 1);
+  }
+
+  // give up if first frame never arrives
+  useEffect(() => {
+    if (status !== "connecting" || !activeUrl) return;
+    const id = setTimeout(() => setStatus("failed"), CONNECT_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [status, activeUrl, nonce]);
+
+  // flight timer
+  useEffect(() => {
+    if (status !== "live" || paused) return;
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, [status, paused]);
+
+  // poll model results
+  useEffect(() => {
+    if (!activeUrl) return;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const [dets, scans] = await Promise.all([getDetections(), getScans().catch(() => [])]);
+        if (cancelled) return;
+        setServerError(false);
+
+        const newest = dets.reduce((m: number, d: any) => Math.max(m, d.detection_id), 0);
+        if (baselineRef.current === null) {
+          baselineRef.current = newest;
+          return;
+        }
+        const scanById: Record<string, any> = {};
+        scans.forEach((sc: any) => { scanById[sc.scan_id] = sc; });
+
+        const fresh = dets
+          .filter((d: any) => d.detection_id > (baselineRef.current as number))
+          .sort((a: any, b: any) => b.detection_id - a.detection_id)
+          .slice(0, 20)
+          .map((d: any) => {
+            if (!arrivedRef.current[d.detection_id]) arrivedRef.current[d.detection_id] = Date.now();
+            return { ...d, when: parseServerDate(scanById[d.scan_id]?.timestamp) };
+          });
+        setFlight(fresh);
+      } catch {
+        if (!cancelled) setServerError(true);
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [activeUrl]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(""), 4000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  function takeScreenshot() {
+    if (status !== "live" || paused) {
+      setToast("Nothing to capture yet. Wait for the live video.");
+      return;
+    }
+    webRef.current?.injectJavaScript("window.snap(); true;");
+  }
+
+  async function onMessage(e: any) {
+    let msg: any;
+    try { msg = JSON.parse(e.nativeEvent.data); } catch { return; }
+    if (msg.type === "live") setStatus("live");
+    else if (msg.type === "failed") setStatus("failed");
+    else if (msg.type === "shotfail") setToast("This stream does not allow screenshots from the app. Use your phone's screenshot buttons instead.");
+    else if (msg.type === "shot") {
+      try {
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (!perm.granted) { setToast("Allow photo access to save screenshots."); return; }
+        const path = `${FileSystem.cacheDirectory}bananaguard-${Date.now()}.jpg`;
+        await FileSystem.writeAsStringAsync(path, msg.data, { encoding: "base64" as any });
+        await MediaLibrary.saveToLibraryAsync(path);
+        setToast("Screenshot saved to your gallery.");
+      } catch {
+        setToast("Could not capture this frame.");
+      }
+    }
+  }
+
+  const diseased = flight.filter((d) => d.anomaly_detected).length;
+  const healthy = flight.length - diseased;
+  const badge = paused ? { label: "PAUSED", dot: "#9CA3AF", blink: false } : STATUS_BADGE[status];
+  const canControl = status === "live";
 
   return (
-    <View style={[styles2.container, { backgroundColor: C.background }]}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
       {/* Header */}
-      <View style={[styles2.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles2.headerTitle}>Live Drone Feed</Text>
-        <Text style={styles2.headerSub}>UAV-01 · Demo stream</Text>
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={s.headerTitle}>Live Drone Feed</Text>
+        <Text style={s.headerSub}>Live from the drone</Text>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles2.scrollContent}
-      >
-        {/* Video feed */}
-        <View style={styles.feed}>
-          <Animated.View style={{ transform: [{ translateY: scroll }] }}>
-            <PlantTile shade={false} />
-            <PlantTile shade />
-          </Animated.View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+        {/* Feed */}
+        <View style={s.feed}>
+          {activeUrl && !paused && (
+            <WebView
+              key={nonce}
+              ref={webRef}
+              originWhitelist={["*"]}
+              source={{ html: buildHtml(activeUrl) }}
+              onMessage={onMessage}
+              onError={() => setStatus("failed")}
+              onHttpError={() => setStatus("failed")}
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
+              javaScriptEnabled
+              scrollEnabled={false}
+              mixedContentMode="always"
+              style={StyleSheet.absoluteFill}
+            />
+          )}
 
-          {/* corner brackets */}
-          <View
-            style={[
-              styles.corner,
-              { top: 8, left: 8, borderTopWidth: 2, borderLeftWidth: 2 },
-            ]}
-          />
-          <View
-            style={[
-              styles.corner,
-              { top: 8, right: 8, borderTopWidth: 2, borderRightWidth: 2 },
-            ]}
-          />
-          <View
-            style={[
-              styles.corner,
-              { bottom: 8, left: 8, borderBottomWidth: 2, borderLeftWidth: 2 },
-            ]}
-          />
-          <View
-            style={[
-              styles.corner,
-              {
-                bottom: 8,
-                right: 8,
-                borderBottomWidth: 2,
-                borderRightWidth: 2,
-              },
-            ]}
-          />
-
-          {/* crosshair */}
-          <View style={styles.crossH} />
-          <View style={styles.crossV} />
-
-          {/* detection box */}
-          {showBox && (
-            <View
-              style={[
-                styles.detBox,
-                { left: `${detection.x}%`, top: `${detection.y}%` },
-              ]}
-            >
-              <View style={styles.detLabel}>
-                <Text style={styles.detLabelText}>
-                  Black Sigatoka {detection.conf}%
-                </Text>
-              </View>
+          {!activeUrl && (
+            <View style={[s.overlay, { backgroundColor: "#10201A" }]}>
+              <Ionicons name="videocam-off-outline" size={34} color="rgba(167,243,208,0.6)" style={{ marginBottom: 10 }} />
+              <Text style={s.overlayTitle}>No live video right now</Text>
+              <Text style={s.overlaySub}>
+                The drone is not streaming. The video will appear here by itself when it starts.
+              </Text>
+            </View>
+          )}
+          {activeUrl && status === "connecting" && !paused && (
+            <View style={[s.overlay, { backgroundColor: "rgba(0,0,0,0.6)" }]} pointerEvents="none">
+              <Text style={s.overlayTitle}>Loading the drone video…</Text>
+            </View>
+          )}
+          {activeUrl && status === "failed" && !paused && (
+            <View style={[s.overlay, { backgroundColor: "rgba(0,0,0,0.85)" }]}>
+              <Ionicons name="alert-circle-outline" size={30} color="#FCA5A5" style={{ marginBottom: 6 }} />
+              <Text style={s.overlayTitle}>Could not show the drone video</Text>
+              <Text style={s.overlaySub}>The stream may have stopped. Try again in a moment.</Text>
+              <TouchableOpacity style={s.retryBtn} onPress={reconnect} activeOpacity={0.8}>
+                <Text style={s.retryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {activeUrl && paused && (
+            <View style={[s.overlay, { backgroundColor: "#10201A" }]}>
+              <Text style={s.overlayTitle}>Paused</Text>
             </View>
           )}
 
-          {/* top HUD */}
-          <View style={styles.hudTop}>
-            <View style={styles.liveBadge}>
-              <Animated.View
-                style={[styles.recDot, { opacity: paused ? 1 : blink }]}
-              />
-              <Text style={styles.liveBadgeText}>
-                {paused ? "PAUSED" : "LIVE"}
-              </Text>
-            </View>
-            <Text style={styles.timer}>{fmt(tick)}</Text>
-          </View>
+          {activeUrl && (
+            <>
+              <View pointerEvents="none" style={[s.corner, { top: 8, left: 8, borderTopWidth: 2, borderLeftWidth: 2 }]} />
+              <View pointerEvents="none" style={[s.corner, { top: 8, right: 8, borderTopWidth: 2, borderRightWidth: 2 }]} />
+              <View pointerEvents="none" style={[s.corner, { bottom: 8, left: 8, borderBottomWidth: 2, borderLeftWidth: 2 }]} />
+              <View pointerEvents="none" style={[s.corner, { bottom: 8, right: 8, borderBottomWidth: 2, borderRightWidth: 2 }]} />
 
-          {/* telemetry */}
-          <View style={styles.telemetry}>
-            <Text style={styles.telText}>ALT {alt.toFixed(1)} m</Text>
-            <Text style={styles.telText}>SPD {spd.toFixed(1)} m/s</Text>
-            <Text style={styles.telText}>BAT {bat}%</Text>
-            <Text style={styles.telText}>8.1234°N 124.5678°E</Text>
-          </View>
+              <View style={s.hudTop} pointerEvents="none">
+                <View style={s.liveBadge}>
+                  <Animated.View
+                    style={[s.recDot, { backgroundColor: badge.dot, opacity: badge.blink ? blink : 1 }]}
+                  />
+                  <Text style={s.liveBadgeText}>{badge.label}</Text>
+                </View>
+                {status === "live" && <Text style={s.timer}>{fmt(elapsed)}</Text>}
+              </View>
+            </>
+          )}
         </View>
 
         {/* Controls */}
-        <View style={styles2.controls}>
-          <TouchableOpacity
-            style={[styles2.btn, { backgroundColor: Colors.primary }]}
-            activeOpacity={0.8}
-            onPress={() => setPaused((p) => !p)}
-          >
-            <Text style={styles2.btnText}>
-              {paused ? "▶ Resume" : "⏸ Pause"}
+        {!!activeUrl && (
+          <View style={s.controls}>
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: Colors.primary, opacity: !paused && !canControl ? 0.4 : 1 }]}
+              activeOpacity={0.8}
+              disabled={!paused && !canControl}
+              onPress={() => (paused ? reconnect() : setPaused(true))}
+            >
+              <Ionicons name={paused ? "play" : "pause"} size={16} color="#FFFFFF" />
+              <Text style={s.btnText}>{paused ? "Resume" : "Pause"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: "transparent", borderWidth: 1.5, borderColor: isDark ? "#A7C4B0" : Colors.primary }]}
+              activeOpacity={0.8}
+              onPress={takeScreenshot}
+            >
+              <Ionicons name="camera-outline" size={18} color={isDark ? "#A7C4B0" : Colors.primary} />
+              <Text style={[s.btnText, { color: isDark ? "#A7C4B0" : Colors.primary }]}>Screenshot</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {!!toast && (
+          <Text style={[s.toast, { color: C.subtext, backgroundColor: isDark ? "#1C2B22" : "#F3F4F6" }]}>{toast}</Text>
+        )}
+
+        {/* Model results */}
+        <View style={s.resultsHeader}>
+          <Text style={[s.sectionLabel, { color: C.subtext }]}>DETECTIONS THIS FLIGHT</Text>
+          {flight.length > 0 && (
+            <Text style={{ fontSize: 11, color: C.subtext }}>
+              <Text style={{ color: Colors.alert, fontWeight: "600" }}>{diseased}</Text> diseased ·{" "}
+              <Text style={{ color: Colors.healthy, fontWeight: "600" }}>{healthy}</Text> healthy
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles2.btn,
-              {
-                backgroundColor: "transparent",
-                borderWidth: 1.5,
-                borderColor: Colors.primary,
-              },
-            ]}
-            activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert(
-                "Screenshot saved",
-                "Demo only — nothing was actually saved.",
-              )
-            }
-          >
-            <Text style={[styles2.btnText, { color: Colors.primary }]}>
-              📸 Screenshot
-            </Text>
-          </TouchableOpacity>
+          )}
         </View>
 
-        {/* Detection log */}
-        <Text style={[styles2.sectionLabel, { color: C.subtext }]}>
-          DETECTIONS THIS FLIGHT
-        </Text>
-        {log.length === 0 ? (
-          <View
-            style={[
-              styles2.logCard,
-              { backgroundColor: C.card, borderColor: C.border },
-            ]}
-          >
-            <Text style={{ color: C.subtext, fontSize: 13 }}>
-              Scanning… no detections yet.
+        {serverError && (
+          <View style={s.errorBox}>
+            <Ionicons name="alert-circle-outline" size={14} color="#B45309" style={{ marginTop: 1 }} />
+            <Text style={s.errorText}>
+              Can't reach the BananaGuard server. Results will show up again once this phone is online.
+            </Text>
+          </View>
+        )}
+
+        {!activeUrl ? (
+          <View style={[s.logCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            <Text style={{ color: C.subtext, fontSize: 13 }}>Results will appear here when the drone starts streaming.</Text>
+          </View>
+        ) : flight.length === 0 ? (
+          <View style={[s.logCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            <Text style={{ color: C.subtext, fontSize: 13, flex: 1 }}>
+              Scanning… no results yet. Black Sigatoka and healthy leaves will appear here as the model checks the video.
             </Text>
           </View>
         ) : (
-          log.map((l) => (
-            <View
-              key={l.id}
-              style={[
-                styles2.logCard,
-                { backgroundColor: C.card, borderColor: C.border },
-              ]}
-            >
-              <Text style={{ fontSize: 14 }}>🍌</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles2.logTitle, { color: C.text }]}>
-                  Black Sigatoka detected
-                </Text>
-                <Text style={[styles2.logSub, { color: C.subtext }]}>
-                  at {l.time} · confidence {l.conf}%
-                </Text>
+          flight.map((d) => {
+            const disease = !!d.anomaly_detected;
+            const isNew = Date.now() - (arrivedRef.current[d.detection_id] || 0) < NEW_FOR_MS;
+            const time = (d.when || new Date(arrivedRef.current[d.detection_id] || Date.now()))
+              .toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            return (
+              <View key={d.detection_id} style={[s.logCard, { backgroundColor: C.card, borderColor: C.border }]}>
+                <Ionicons
+                  name={disease ? "leaf-outline" : "shield-checkmark-outline"}
+                  size={18}
+                  color={disease ? Colors.alert : Colors.healthy}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.logTitle, { color: C.text }]}>
+                    {disease ? `${d.detected_class || "Disease"} detected` : "Healthy leaf"}
+                  </Text>
+                  <Text style={[s.logSub, { color: C.subtext }]}>
+                    at {time}
+                    {d.tier2_confidence != null && ` · confidence ${(d.tier2_confidence * 100).toFixed(0)}%`}
+                  </Text>
+                </View>
+                {isNew && (
+                  <Text style={[s.logBadge, { color: disease ? Colors.alert : Colors.healthy }]}>NEW</Text>
+                )}
               </View>
-              <Text style={[styles2.logBadge, { color: Colors.alert }]}>
-                NEW
-              </Text>
-            </View>
-          ))
+            );
+          })
         )}
 
         <View style={{ height: 32 }} />
@@ -347,155 +407,58 @@ export default function LiveScreen() {
   );
 }
 
-// Feed styles (always dark, like a camera view)
-const styles = StyleSheet.create({
-  feed: {
-    height: FEED_H,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#000",
-  },
-  dirtPath: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: "37%",
-    width: "26%",
-    backgroundColor: "#5B4B32",
-    opacity: 0.55,
-  },
-  corner: {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    borderColor: "rgba(255,255,255,0.8)",
-  },
-  crossH: {
-    position: "absolute",
-    top: "50%",
-    left: "47%",
-    width: "6%",
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.6)",
-  },
-  crossV: {
-    position: "absolute",
-    left: "50%",
-    top: "47%",
-    height: "6%",
-    width: 1,
-    backgroundColor: "rgba(255,255,255,0.6)",
-  },
-  detBox: {
-    position: "absolute",
-    width: 74,
-    height: 62,
-    borderWidth: 2,
-    borderColor: "#EF4444",
-    borderRadius: 4,
-  },
-  detLabel: {
-    position: "absolute",
-    top: -18,
-    left: -2,
-    backgroundColor: "#EF4444",
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-  },
-  detLabelText: { color: "#fff", fontSize: 9, fontWeight: "700" },
-  hudTop: {
-    position: "absolute",
-    top: 14,
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
-  liveBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  timer: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  telemetry: {
-    position: "absolute",
-    left: 16,
-    bottom: 16,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 1,
-  },
-  telText: {
-    color: "#D1FAE5",
-    fontSize: 10,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-  },
-});
-
 function makeStyles(C: typeof Colors.light) {
   return StyleSheet.create({
     container: { flex: 1 },
-    header: {
-      backgroundColor: Colors.primary,
-      paddingBottom: 20,
-      paddingHorizontal: 20,
-    },
+    header: { backgroundColor: Colors.primary, paddingBottom: 20, paddingHorizontal: 20 },
     headerTitle: { fontSize: 24, fontWeight: "700", color: "#FFFFFF" },
     headerSub: { fontSize: 13, color: "#A7C4B0", marginTop: 2 },
     scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
-    controls: {
-      flexDirection: "row",
-      gap: 10,
-      marginTop: 14,
-      marginBottom: 20,
+
+    feed: { height: FEED_H, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center", justifyContent: "center", paddingHorizontal: 28,
     },
-    btn: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
+    overlayTitle: { color: "#fff", fontSize: 14, fontWeight: "600", textAlign: "center" },
+    overlaySub: { color: "rgba(209,250,229,0.65)", fontSize: 12, marginTop: 4, textAlign: "center" },
+    retryBtn: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: "#fff" },
+    retryText: { color: Colors.primary, fontSize: 13, fontWeight: "600" },
+    corner: { position: "absolute", width: 20, height: 20, borderColor: "rgba(255,255,255,0.8)" },
+    hudTop: {
+      position: "absolute", top: 14, left: 16, right: 16,
+      flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     },
+    liveBadge: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6,
+    },
+    recDot: { width: 8, height: 8, borderRadius: 4 },
+    liveBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+    timer: {
+      color: "#fff", fontSize: 12, fontWeight: "600", backgroundColor: "rgba(0,0,0,0.55)",
+      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: "hidden",
+      fontVariant: ["tabular-nums"],
+    },
+
+    controls: { flexDirection: "row", gap: 10, marginTop: 14 },
+    btn: { flex: 1, height: 44, borderRadius: 10, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center" },
     btnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-    sectionLabel: {
-      fontSize: 11,
-      fontWeight: "600",
-      letterSpacing: 1,
-      marginBottom: 8,
+    toast: { marginTop: 12, fontSize: 13, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, overflow: "hidden" },
+
+    resultsHeader: {
+      flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+      marginTop: 20, marginBottom: 8,
     },
+    sectionLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 1 },
+    errorBox: {
+      flexDirection: "row", gap: 8, backgroundColor: "#FFFBEB", borderWidth: 1,
+      borderColor: "#FDE68A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8,
+    },
+    errorText: { color: "#B45309", fontSize: 12, flex: 1 },
     logCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      borderRadius: 12,
-      borderWidth: 1,
-      padding: 12,
-      marginBottom: 8,
+      flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12,
+      borderWidth: 1, padding: 12, marginBottom: 8,
     },
     logTitle: { fontSize: 13, fontWeight: "600" },
     logSub: { fontSize: 11, marginTop: 1 },

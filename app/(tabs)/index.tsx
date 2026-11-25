@@ -1,20 +1,21 @@
 import { FARM } from "@/constants/MockData";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    Alert,
-    Image,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Alert,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
-import { useAuth } from '@/context/AuthContext';
-import { formatDateTime } from '@/utils/dates';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
+import { formatDateTime } from "@/utils/dates";
 
 const Colors = {
   primary: "#1B4332",
@@ -60,11 +61,18 @@ export default function HomeScreen() {
   const C = isDark ? Colors.dark : Colors.light;
   const { currentUser, userAlerts, refreshAlerts, acknowledgeAlert } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  const firstName = currentUser?.full_name?.split(' ')[0] ?? 'Farmer';
+  const firstName = currentUser?.full_name?.split(" ")[0] ?? "Farmer";
   const initials = currentUser?.full_name
-  ? currentUser.full_name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-  : '??';
+    ? currentUser.full_name
+        .trim()
+        .split(/\s+/)
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "??";
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -90,33 +98,37 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={Colors.primary}
-      />
-
-{/* Header */}
-<View style={styles.header}>
-  <View style={styles.headerTop}>
-    <View style={styles.headerLeft}>
-      <Image
-        source={require("../../assets/images/icon.bgai.png")}
-        style={styles.logo}
-        resizeMode="cover"
-      />
-      <View style={{ flexShrink: 1 }}>
-        <Text style={styles.greeting}>
-          {getGreeting()}, {firstName}! 👋
-        </Text>
-        <Text style={styles.farmName}>🌱 {FARM.name}</Text>
-        <Text style={styles.dateText}>{getCurrentDate()}</Text>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
+            <Image
+              source={require("../../assets/images/icon.bgai.png")}
+              style={styles.logo}
+              resizeMode="cover"
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={styles.greeting}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {getGreeting()}, {firstName}!
+              </Text>
+              <Text style={styles.farmName} numberOfLines={1}>
+                {FARM.name}
+              </Text>
+              <Text style={styles.dateText} numberOfLines={1}>
+                {getCurrentDate()}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+        </View>
       </View>
-    </View>
-    <View style={styles.avatarCircle}>
-      <Text style={styles.avatarText}>{initials}</Text>
-    </View>
-  </View>
-</View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -131,56 +143,33 @@ export default function HomeScreen() {
         }
       >
         {/* Summary Cards */}
-        <Text style={[styles.sectionLabel, { color: C.subtext }]}>
-          FARM SUMMARY
-        </Text>
+        <Text style={[styles.sectionLabel, { color: C.subtext }]}>FARM SUMMARY</Text>
         <View style={styles.cardsRow}>
-          <View
-            style={[
-              styles.summaryCard,
-              { backgroundColor: C.card, borderColor: C.border },
-            ]}
-          >
-            <Text style={[styles.summaryNumber, { color: C.text }]}>
-              {alerts.length}
-            </Text>
-            <Text style={[styles.summaryTitle, { color: C.subtext }]}>
-              Total Alerts
-            </Text>
+          <View style={[styles.summaryCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            <Text style={[styles.summaryNumber, { color: C.text }]}>{alerts.length}</Text>
+            <Text style={[styles.summaryTitle, { color: C.subtext }]}>Total Alerts</Text>
           </View>
           <View
             style={[
               styles.summaryCard,
-              {
-                backgroundColor: C.card,
-                borderColor: Colors.accent,
-                borderWidth: 1.5,
-              },
+              { backgroundColor: C.card, borderColor: Colors.accent, borderWidth: 1.5 },
             ]}
           >
             <Text style={[styles.summaryNumber, { color: Colors.accent }]}>
               {activeAlerts.length}
             </Text>
-            <Text style={[styles.summaryTitle, { color: C.subtext }]}>
-              Active
-            </Text>
+            <Text style={[styles.summaryTitle, { color: C.subtext }]}>Active</Text>
           </View>
           <View
             style={[
               styles.summaryCard,
-              {
-                backgroundColor: C.card,
-                borderColor: Colors.healthy,
-                borderWidth: 1.5,
-              },
+              { backgroundColor: C.card, borderColor: Colors.healthy, borderWidth: 1.5 },
             ]}
           >
             <Text style={[styles.summaryNumber, { color: Colors.healthy }]}>
               {resolvedAlerts.length}
             </Text>
-            <Text style={[styles.summaryTitle, { color: C.subtext }]}>
-              Resolved
-            </Text>
+            <Text style={[styles.summaryTitle, { color: C.subtext }]}>Resolved</Text>
           </View>
         </View>
 
@@ -192,7 +181,7 @@ export default function HomeScreen() {
               { backgroundColor: isDark ? "#0F2A1A" : "#DCFCE7" },
             ]}
           >
-            <Text style={styles.healthyEmoji}>🌿</Text>
+            <Ionicons name="leaf" size={28} color={Colors.healthy} />
             <View>
               <Text style={[styles.healthyTitle, { color: Colors.healthy }]}>
                 Your farm is healthy!
@@ -209,7 +198,7 @@ export default function HomeScreen() {
               { backgroundColor: isDark ? "#2A1010" : "#FEF2F2" },
             ]}
           >
-            <Text style={styles.healthyEmoji}>⚠️</Text>
+            <Ionicons name="warning" size={28} color={Colors.alert} />
             <View>
               <Text style={[styles.warningTitle, { color: Colors.alert }]}>
                 {activeAlerts.length} active alert
@@ -223,13 +212,18 @@ export default function HomeScreen() {
         )}
 
         {/* Recent Alerts */}
-        <Text style={[styles.sectionLabel, { color: C.subtext }]}>
-          RECENT ALERTS
-        </Text>
+        <Text style={[styles.sectionLabel, { color: C.subtext }]}>RECENT ALERTS</Text>
 
         {alerts.length === 0 && (
-          <View style={[styles.alertCard, { backgroundColor: C.card, borderColor: C.border, alignItems: "center" }]}>
-            <Text style={[styles.alertMessage, { color: C.subtext, textAlign: "center" }]}>
+          <View
+            style={[
+              styles.alertCard,
+              { backgroundColor: C.card, borderColor: C.border, alignItems: "center" },
+            ]}
+          >
+            <Text
+              style={[styles.alertMessage, { color: C.subtext, textAlign: "center" }]}
+            >
               No alerts yet. You will be notified here when the UAV detects a problem.
             </Text>
           </View>
@@ -249,7 +243,12 @@ export default function HomeScreen() {
           >
             <View style={styles.alertHeader}>
               <View style={styles.alertCoords}>
-                <Text style={styles.coordsIcon}>🆔</Text>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color={C.subtext}
+                  style={{ marginTop: 1 }}
+                />
                 <View>
                   <Text style={[styles.coordsText, { color: C.text }]}>
                     Alert #{alert.alert_id}
@@ -265,7 +264,9 @@ export default function HomeScreen() {
                   {
                     backgroundColor: !alert.acknowledged
                       ? "#FEF2F2"
-                      : isDark ? "#1F2937" : "#F3F4F6",
+                      : isDark
+                        ? "#1F2937"
+                        : "#F3F4F6",
                   },
                 ]}
               >
@@ -275,7 +276,7 @@ export default function HomeScreen() {
                     { color: !alert.acknowledged ? Colors.alert : Colors.resolved },
                   ]}
                 >
-                  {!alert.acknowledged ? "● ACTIVE" : "✓ RESOLVED"}
+                  {!alert.acknowledged ? "ACTIVE" : "RESOLVED"}
                 </Text>
               </View>
             </View>
@@ -288,7 +289,7 @@ export default function HomeScreen() {
                 ]}
               >
                 <Text style={[styles.diseaseText, { color: Colors.accent }]}>
-                  {alert.detection_id ? "🍌 UAV Disease Alert" : "📢 Message from Admin"}
+                  {alert.detection_id ? "UAV Disease Alert" : "Message from Admin"}
                 </Text>
               </View>
             </View>
@@ -304,7 +305,7 @@ export default function HomeScreen() {
                 onPress={() => router.push("/(tabs)/map" as any)}
               >
                 <Text style={[styles.btnSecondaryText, { color: Colors.primary }]}>
-                  🗺 View on Map
+                  View on Map
                 </Text>
               </TouchableOpacity>
               {!alert.acknowledged && (
@@ -313,7 +314,7 @@ export default function HomeScreen() {
                   activeOpacity={0.7}
                   onPress={() => markResolved(alert.alert_id)}
                 >
-                  <Text style={styles.btnPrimaryText}>✓ Mark Resolved</Text>
+                  <Text style={styles.btnPrimaryText}>Mark Resolved</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -321,7 +322,10 @@ export default function HomeScreen() {
         ))}
 
         {alerts.length > 5 && (
-          <TouchableOpacity onPress={() => router.push("/(tabs)/alerts" as any)} style={{ alignItems: "center", paddingVertical: 8 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/alerts" as any)}
+            style={{ alignItems: "center", paddingVertical: 8 }}
+          >
             <Text style={{ color: Colors.primary, fontWeight: "600", fontSize: 13 }}>
               See all {alerts.length} alerts
             </Text>
@@ -337,45 +341,23 @@ export default function HomeScreen() {
 function makeStyles(C: typeof Colors.light, isDark: boolean) {
   return StyleSheet.create({
     container: { flex: 1 },
+    // Same header spacing as Map, Live, Alerts and Profile
     header: {
       backgroundColor: Colors.primary,
-      paddingTop: 56,
-      paddingBottom: 24,
-      paddingHorizontal: 15,
+      paddingBottom: 20,
+      paddingHorizontal: 20,
     },
-        headerTop: {
+    headerTop: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      gap: 10,
     },
-    headerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      flex: 1,
-    },
-    logo: {
-      width: 52,
-      height: 52,
-      borderRadius: 12,
-    },
-    greeting: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: "#FFFFFF",
-      letterSpacing: 0.2,
-    },
-    farmName: {
-      fontSize: 14,
-      color: "#A7C4B0",
-      marginTop: 2,
-      fontWeight: "500",
-    },
-    dateText: {
-      fontSize: 12,
-      color: "#6B9E7E",
-      marginTop: 2,
-    },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+    logo: { width: 52, height: 52, borderRadius: 12 },
+    greeting: { fontSize: 20, fontWeight: "700", color: "#FFFFFF", letterSpacing: 0.2 },
+    farmName: { fontSize: 14, color: "#A7C4B0", marginTop: 2, fontWeight: "500" },
+    dateText: { fontSize: 12, color: "#6B9E7E", marginTop: 2 },
     avatarCircle: {
       width: 48,
       height: 48,
@@ -384,15 +366,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: "#FFFFFF",
-    },
-    scrollContent: {
-      paddingHorizontal: 16,
-      paddingTop: 20,
-    },
+    avatarText: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
     sectionLabel: {
       fontSize: 11,
       fontWeight: "600",
@@ -400,11 +375,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       marginBottom: 10,
       marginTop: 4,
     },
-    cardsRow: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 16,
-    },
+    cardsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
     summaryCard: {
       flex: 1,
       borderRadius: 12,
@@ -412,16 +383,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       padding: 14,
       alignItems: "center",
     },
-    summaryNumber: {
-      fontSize: 28,
-      fontWeight: "700",
-    },
-    summaryTitle: {
-      fontSize: 11,
-      fontWeight: "500",
-      marginTop: 2,
-      textAlign: "center",
-    },
+    summaryNumber: { fontSize: 28, fontWeight: "700" },
+    summaryTitle: { fontSize: 11, fontWeight: "500", marginTop: 2, textAlign: "center" },
     healthyBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -438,42 +401,21 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       borderRadius: 12,
       marginBottom: 20,
     },
-    healthyEmoji: { fontSize: 28 },
     healthyTitle: { fontSize: 15, fontWeight: "700" },
     warningTitle: { fontSize: 15, fontWeight: "700" },
     healthySubtext: { fontSize: 12, marginTop: 2 },
-    alertCard: {
-      borderRadius: 12,
-      borderWidth: 1,
-      padding: 14,
-      marginBottom: 12,
-    },
+    alertCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
     alertHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
       marginBottom: 10,
     },
-    alertCoords: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 6,
-      flex: 1,
-    },
-    coordsIcon: { fontSize: 14, marginTop: 1 },
+    alertCoords: { flexDirection: "row", alignItems: "flex-start", gap: 6, flex: 1 },
     coordsText: { fontSize: 13, fontWeight: "600" },
     scanId: { fontSize: 11, marginTop: 1 },
-    statusBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-      marginLeft: 8,
-    },
-    statusText: {
-      fontSize: 10,
-      fontWeight: "700",
-      letterSpacing: 0.5,
-    },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
+    statusText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
     detectionRow: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -482,13 +424,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       paddingBottom: 8,
       borderBottomWidth: 1,
     },
-    diseaseBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
+    diseaseBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
     diseaseText: { fontSize: 12, fontWeight: "600" },
-    dateText2: { fontSize: 11 },
     alertMessage: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
     cardActions: { flexDirection: "row", gap: 8 },
     btnSecondary: {

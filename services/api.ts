@@ -250,3 +250,28 @@ export const alertsAPI = {
   acknowledge: (alert_id: number): Promise<AlertOut> =>
     request("PATCH", `/users/me/alerts/${alert_id}/acknowledge`),
 };
+
+// ─────────────────────────────────────────────────────────────
+// DETECTIONS & SCANS (used by the Live screen)
+// ─────────────────────────────────────────────────────────────
+
+export interface DetectionOut {
+  detection_id: number;
+  scan_id: number | null;
+  anomaly_detected: boolean;
+  detected_class: string | null;
+  tier2_confidence: number | null;
+}
+
+export interface ScanOut {
+  scan_id: number;
+  timestamp: string | null;
+}
+
+export const getDetections = (): Promise<DetectionOut[]> =>
+  request("GET", "/detections");
+
+export const getScans = (): Promise<ScanOut[]> => request("GET", "/scans");
+
+export const getLiveStream = (): Promise<{ stream_url: string | null }> =>
+  request("GET", "/stream");

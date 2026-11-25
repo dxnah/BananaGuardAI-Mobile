@@ -15,3 +15,4 @@ export function formatDateTime(value: string | null | undefined): string {
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
 }
+

@@ -5,13 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   useColorScheme,
-  StatusBar,
   TextInput,
   ActivityIndicator,
   Modal,
 } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { usersAPI } from '@/services/api';
 
@@ -39,6 +40,8 @@ const Colors = {
   },
 };
 
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
 function getInitials(fullName: string) {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -50,9 +53,10 @@ export default function ProfileScreen() {
   const isDark = scheme === 'dark';
   const C = isDark ? Colors.dark : Colors.light;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { currentUser, logout, refreshUser, refreshAlerts } = useAuth();
 
-  // Edit modal state — pre-filled with all signup fields
+  // Edit modal state
   const [editVisible, setEditVisible]     = useState(false);
   const [editFullName, setEditFullName]   = useState('');
   const [editPhone, setEditPhone]         = useState('');
@@ -76,7 +80,6 @@ export default function ProfileScreen() {
   };
 
   const openEdit = () => {
-    // Pre-fill with current user data
     setEditFullName(currentUser?.full_name ?? '');
     setEditPhone(currentUser?.phone_number ?? '');
     setEditError('');
@@ -99,7 +102,7 @@ export default function ProfileScreen() {
         phone_number: editPhone.trim(),
       });
       setEditSuccess(true);
-      await refreshUser();   // re-fetch user from backend so profile display updates
+      await refreshUser();
       await refreshAlerts();
       setTimeout(() => setEditVisible(false), 1200);
     } catch (e: any) {
@@ -145,10 +148,8 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
-
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>Profile</Text>
         <Text style={styles.headerSub}>Your account</Text>
       </View>
@@ -157,7 +158,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── Profile Card ── */}
+        {/* Profile Card */}
         <View style={[styles.profileCard, { backgroundColor: C.card, borderColor: C.border }]}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>{initials}</Text>
@@ -171,7 +172,7 @@ export default function ProfileScreen() {
             </Text>
             {currentUser.phone_number ? (
               <Text style={[styles.profileRegion, { color: C.subtext }]}>
-                📞 {currentUser.phone_number}
+                {currentUser.phone_number}
               </Text>
             ) : null}
           </View>
@@ -184,7 +185,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Account Details ── */}
+        {/* Account Details */}
         <Text style={[styles.sectionLabel, { color: C.subtext }]}>ACCOUNT DETAILS</Text>
         <View style={[styles.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
           {[
@@ -205,7 +206,7 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Member Since ── */}
+        {/* Member Since */}
         <Text style={[styles.sectionLabel, { color: C.subtext }]}>MEMBERSHIP</Text>
         <View style={[styles.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
           <View style={[styles.detailRow, { borderColor: C.border, borderBottomWidth: 0 }]}>
@@ -220,34 +221,35 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Change Password ── */}
+        {/* Change Password */}
         <TouchableOpacity
           style={[styles.changePwBtn, { borderColor: Colors.primary }]}
           activeOpacity={0.7}
           onPress={openPw}
         >
-          <Text style={styles.changePwIcon}>🔐</Text>
+          <Ionicons name="lock-closed-outline" size={18} color={Colors.primary} />
           <Text style={[styles.changePwText, { color: Colors.primary }]}>Change Password</Text>
         </TouchableOpacity>
 
-        {/* ── Logout ── */}
+        {/* Logout */}
         <TouchableOpacity
           style={[styles.logoutBtn, { borderColor: Colors.alert }]}
           activeOpacity={0.7}
           onPress={handleLogout}
         >
-          <Text style={[styles.logoutText, { color: Colors.alert }]}>🚪 Log Out</Text>
+          <Ionicons name="log-out-outline" size={18} color={Colors.alert} />
+          <Text style={[styles.logoutText, { color: Colors.alert }]}>Log Out</Text>
         </TouchableOpacity>
 
         <Text style={[styles.footer, { color: C.subtext }]}>
           BananaGuard AI · Powered by UAV Technology{'\n'}
-          Bukidnon, Philippines 🇵🇭
+          Bukidnon, Philippines
         </Text>
 
         <View style={{ height: 32 }} />
       </ScrollView>
 
-      {/* ── Change Password Modal ── */}
+      {/* Change Password Modal */}
       <Modal visible={pwVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: C.card }]}>
@@ -261,7 +263,7 @@ export default function ProfileScreen() {
               <View key={f.label} style={mfS.group}>
                 <Text style={[mfS.label, { color: C.subtext }]}>{f.label}</Text>
                 <View style={[mfS.wrapper, { backgroundColor: C.input, borderColor: C.border }]}>
-                  <Text style={mfS.icon}>🔒</Text>
+                  <Ionicons name="lock-closed-outline" size={18} color={C.subtext} />
                   <TextInput
                     style={[mfS.input, { color: C.text }]}
                     placeholder={f.placeholder}
@@ -276,17 +278,25 @@ export default function ProfileScreen() {
               </View>
             ))}
 
-            <TouchableOpacity onPress={() => setShowPw(!showPw)} style={{ marginBottom: 12 }}>
-              <Text style={[styles.feedbackText, { color: C.subtext }]}>
-                {showPw ? '🙈 Hide passwords' : '👁️ Show passwords'}
+            <TouchableOpacity
+              onPress={() => setShowPw(!showPw)}
+              style={styles.showPwRow}
+            >
+              <Ionicons
+                name={showPw ? 'eye-off-outline' : 'eye-outline'}
+                size={16}
+                color={C.subtext}
+              />
+              <Text style={[styles.showPwText, { color: C.subtext }]}>
+                {showPw ? 'Hide passwords' : 'Show passwords'}
               </Text>
             </TouchableOpacity>
 
             {pwError !== '' && (
-              <Text style={[styles.feedbackText, { color: Colors.alert }]}>⚠️ {pwError}</Text>
+              <Text style={[styles.feedbackText, { color: Colors.alert }]}>{pwError}</Text>
             )}
             {pwSuccess && (
-              <Text style={[styles.feedbackText, { color: Colors.healthy }]}>✅ Password updated!</Text>
+              <Text style={[styles.feedbackText, { color: Colors.healthy }]}>Password updated!</Text>
             )}
 
             <View style={styles.modalActions}>
@@ -313,7 +323,7 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* ── Edit Profile Modal ── */}
+      {/* Edit Profile Modal */}
       <Modal visible={editVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: C.card }]}>
@@ -322,8 +332,8 @@ export default function ProfileScreen() {
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={[styles.modalSection, { color: C.subtext }]}>ACCOUNT INFO</Text>
               {[
-                { label: 'FARMER NAME',   icon: '👤', value: editFullName, setter: setEditFullName, placeholder: 'Farmer name',      caps: 'words' as const },
-                { label: 'MOBILE NUMBER', icon: '📞', value: editPhone,    setter: setEditPhone,    placeholder: 'e.g. 09171234567', caps: 'none'  as const, keyboard: 'phone-pad' as const },
+                { label: 'FARMER NAME',   icon: 'person-outline' as IconName, value: editFullName, setter: setEditFullName, placeholder: 'Farmer name',      caps: 'words' as const },
+                { label: 'MOBILE NUMBER', icon: 'call-outline' as IconName,   value: editPhone,    setter: setEditPhone,    placeholder: 'e.g. 09171234567', caps: 'none'  as const, keyboard: 'phone-pad' as const },
               ].map((f) => (
                 <ModalField key={f.label} {...f} C={C} onEdit={() => { setEditError(''); setEditSuccess(false); }} />
               ))}
@@ -332,10 +342,10 @@ export default function ProfileScreen() {
               </Text>
 
               {editError !== '' && (
-                <Text style={[styles.feedbackText, { color: Colors.alert }]}>⚠️ {editError}</Text>
+                <Text style={[styles.feedbackText, { color: Colors.alert }]}>{editError}</Text>
               )}
               {editSuccess && (
-                <Text style={[styles.feedbackText, { color: Colors.healthy }]}>✅ Profile updated!</Text>
+                <Text style={[styles.feedbackText, { color: Colors.healthy }]}>Profile updated!</Text>
               )}
 
               <View style={styles.modalActions}>
@@ -366,9 +376,9 @@ export default function ProfileScreen() {
   );
 }
 
-// ── Reusable modal input field ────────────────────────────────────────────────
+// Reusable modal input field
 type ModalFieldProps = {
-  label: string; icon: string; value: string;
+  label: string; icon: IconName; value: string;
   setter: (t: string) => void; placeholder: string;
   caps?: 'none' | 'words' | 'sentences' | 'characters';
   keyboard?: 'default' | 'email-address' | 'phone-pad';
@@ -381,7 +391,7 @@ function ModalField({ label, icon, value, setter, placeholder, caps = 'sentences
     <View style={mfS.group}>
       <Text style={[mfS.label, { color: C.subtext }]}>{label}</Text>
       <View style={[mfS.wrapper, { backgroundColor: C.input, borderColor: C.border }]}>
-        <Text style={mfS.icon}>{icon}</Text>
+        <Ionicons name={icon} size={18} color={C.subtext} />
         <TextInput
           style={[mfS.input, { color: C.text }]}
           placeholder={placeholder} placeholderTextColor={C.subtext}
@@ -397,14 +407,13 @@ const mfS = StyleSheet.create({
   group: { marginBottom: 12 },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 6 },
   wrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, height: 50, gap: 8 },
-  icon: { fontSize: 16 },
   input: { flex: 1, fontSize: 15, height: '100%' },
 });
 
 function makeStyles(C: typeof Colors.light, isDark: boolean) {
   return StyleSheet.create({
     container: { flex: 1 },
-    header: { backgroundColor: Colors.primary, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20 },
+    header: { backgroundColor: Colors.primary, paddingBottom: 20, paddingHorizontal: 20 },
     headerTitle: { fontSize: 24, fontWeight: '700', color: '#FFFFFF' },
     headerSub: { fontSize: 13, color: '#A7C4B0', marginTop: 2 },
     scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
@@ -422,16 +431,7 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
     detailLabel: { fontSize: 14, fontWeight: '500' },
     detailValue: { fontSize: 14, fontWeight: '600', maxWidth: '55%', textAlign: 'right' },
-    settingsCard: { borderRadius: 12, borderWidth: 1, marginBottom: 24, overflow: 'hidden' },
-    settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, minHeight: 64 },
-    settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    settingIcon: { fontSize: 20 },
-    settingTitle: { fontSize: 14, fontWeight: '600' },
-    settingSub: { fontSize: 12, marginTop: 1 },
-    settingRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    settingValue: { fontSize: 13 },
-    chevron: { fontSize: 20, fontWeight: '300' },
-    logoutBtn: { height: 52, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+    logoutBtn: { flexDirection: 'row', gap: 8, height: 52, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
     logoutText: { fontSize: 15, fontWeight: '700' },
     footer: { textAlign: 'center', fontSize: 12, lineHeight: 18, marginBottom: 8 },
     // Modal
@@ -440,6 +440,8 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
     modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
     modalSection: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 10 },
     feedbackText: { fontSize: 13, fontWeight: '500', marginBottom: 12 },
+    showPwRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    showPwText: { fontSize: 13, fontWeight: '500' },
     modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
     modalBtn: { flex: 1, height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     modalBtnText: { fontSize: 15, fontWeight: '700' },
@@ -453,7 +455,6 @@ function makeStyles(C: typeof Colors.light, isDark: boolean) {
       marginBottom: 16,
       gap: 8,
     },
-    changePwIcon: { fontSize: 18 },
     changePwText: { fontSize: 15, fontWeight: '700' },
   });
 }
